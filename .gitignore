@@ -1,0 +1,22 @@
+# Mac system files
+*.DS_Store
+*.DS_STORE
+
+# VSCode settings
+*.vscode
+
+# Golang
+go.work
+
+# Python
+.venv
+__pycache__
+
+# Log
+*.log
+
+# Others
+*.yaml
+*.build
+AGENTS*.md
+HANDBOOK.md
