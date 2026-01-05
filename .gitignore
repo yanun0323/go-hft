@@ -19,4 +19,4 @@ __pycache__
 *.yaml
 *.build
 AGENTS*.md
-HANDBOOK.md
+.reference

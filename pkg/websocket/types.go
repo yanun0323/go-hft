@@ -1,0 +1,65 @@
+package websocket
+
+import "time"
+
+// TopicID is the numeric identifier for a topic.
+type TopicID uint32
+
+// MessageType represents a WebSocket message type.
+// Values match RFC 6455 opcodes where applicable.
+type MessageType uint8
+
+const (
+	// MessageText is a text data frame.
+	MessageText   MessageType = 1
+	// MessageBinary is a binary data frame.
+	MessageBinary MessageType = 2
+	// MessageClose is a close control frame.
+	MessageClose  MessageType = 8
+	// MessagePing is a ping control frame.
+	MessagePing   MessageType = 9
+	// MessagePong is a pong control frame.
+	MessagePong   MessageType = 10
+)
+
+// CloseCode is a WebSocket close code.
+type CloseCode uint16
+
+const (
+	// CloseNormal indicates a normal closure.
+	CloseNormal CloseCode = 1000
+)
+
+// FanoutMode controls how frames are delivered to multiple consumers.
+type FanoutMode uint8
+
+const (
+	// FanoutShared shares the same frame across all consumers using ref counting.
+	FanoutShared FanoutMode = iota
+	// FanoutCopy copies the payload for each consumer.
+	FanoutCopy
+)
+
+// OverflowPolicy defines queue behavior when full.
+type OverflowPolicy uint8
+
+const (
+	// OverflowDropNewest drops the incoming item if the queue is full.
+	OverflowDropNewest OverflowPolicy = iota
+	// OverflowDropOldest drops the oldest item to make room.
+	OverflowDropOldest
+	// OverflowBlock blocks until space is available.
+	OverflowBlock
+)
+
+// Backoff defines reconnect backoff behavior.
+type Backoff struct {
+	// Min is the minimum backoff duration.
+	Min time.Duration
+	// Max is the maximum backoff duration.
+	Max time.Duration
+	// Factor multiplies the delay for each retry attempt.
+	Factor float64
+	// Jitter adds randomization as a fraction of the delay (0-1).
+	Jitter float64
+}

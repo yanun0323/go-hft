@@ -1,219 +1,116 @@
-# go-hft
-
-Minimal HFT event pipeline sandbox that records events to a WAL, supports replay, and can recover positions from snapshots.
-
-## Project Layout
-
-- `cmd/trader`: Order flow simulator with WAL recording, snapshot writing, replay, and recovery support.
-- `cmd/mdg`: Market data generator that writes normalized ticks to the WAL.
-- `cmd/tools/replay`: WAL playback tool with optional payload decoding.
-- `internal/ops`: Config loading and registry construction.
-- `internal/schema`: Event schema, enums, and payload types.
-- `internal/codec`: Binary codecs for event payloads.
-- `internal/recorder`: WAL writer/reader/playback implementation.
-- `internal/bus`: In-memory, non-blocking event queue.
-- `internal/og`: Stub order gateway + order state machine.
-- `internal/risk`: Simple risk engine.
-- `internal/state`: Position reducer, snapshot IO, and recovery.
-- `internal/mdg`: Market data generator/normalizer.
-
-## Requirements
-
-- Go 1.25。5+
-- No required environment variables
-
-## Execution Steps
-
-### Build
-
-```bash
-go build -o bin/trader ./cmd/trader
-go build -o bin/mdg ./cmd/mdg
-go build -o bin/replay ./cmd/tools/replay
-```
-
-### Record Mode (Trader)
-
-```bash
-./bin/trader \
-  -wal-dir testdata/wal \
-  -config config.json \
-  -order-count 10 \
-  -order-interval 50ms \
-  -snapshot-path testdata/wal/positions.json
-```
-
-### Replay Mode (Trader)
-
-```bash
-./bin/trader \
-  -replay-dir testdata/wal \
-  -replay-speed 1 \
-  -replay-verify-snapshot=true \
-  -replay-snapshot testdata/wal/positions.json
-```
-
-### Market Data Generator (MDG)
-
-```bash
-./bin/mdg \
-  -wal-dir testdata/wal \
-  -config config.json \
-  -ticks 100 \
-  -interval 10ms \
-  -kind quote
-```
-
-### WAL Replay Tool
-
-```bash
-./bin/replay \
-  -dir testdata/wal \
-  -decode=true
-```
-
-## Deployment Steps
-
-1. Build binaries for the target environment (`go build`).
-2. Provide a JSON config file (see below) and create the WAL directory.
-3. Start `trader` in record mode with `-wal-dir` and `-config`.
-4. Optionally enable config reload (`-config-reload-interval`) and snapshots (`-snapshot-path`).
-5. If recovery is required, start with `-recover` and provide snapshot/WAL options.
-
-## Configuration
-
-The configuration file is JSON and is loaded by `internal/ops`.
-
-### Example `config.json`
-
-```json
-{
-  "registry": {
-    "venues": [
-      { "name": "SIM" }
-    ],
-    "symbols": [
-      {
-        "name": "TEST-USD",
-        "venue": "SIM",
-        "scale": {
-          "PriceScale": 8,
-          "QuantityScale": 8,
-          "NotionalScale": 8,
-          "FeeScale": 8
-        }
-      }
-    ]
-  },
-  "risk": {
-    "KillSwitch": false,
-    "MaxOrderQty": 1000,
-    "MaxOrderNotional": 1000000,
-    "MaxPosition": 5000
-  },
-  "order": {
-    "orderId": 1001,
-    "strategyId": 1,
-    "symbol": "TEST-USD",
-    "side": 1,
-    "type": 1,
-    "timeInForce": 1,
-    "price": 100,
-    "qty": 10
-  },
-  "features": {
-    "enableOrderFlow": true,
-    "enableFills": true
-  }
-}
-```
-
-### Enum Reference (numeric)
-
-- `OrderSide`: `1=Buy`, `2=Sell`
-- `OrderType`: `1=Limit`, `2=Market`
-- `TimeInForce`: `1=GTC`, `2=IOC`, `3=FOK`
-- `MarketDataKind`: `1=Trade`, `2=Quote`
-
-### Notes
-
-- Prices/quantities are scaled integers; scaling is defined by `registry.symbols[].scale`.
-- `risk` fields and `scale` fields use struct field names (case-insensitive JSON matching).
-- If `-config` is omitted, `trader` and `mdg` use built-in defaults.
-
-## WAL Format
-
-- Segment naming: `<prefix>-<YYYYMMDD-HHMMSS>-<sequence>.wal` (default prefix: `wal`)
-- Each record contains a fixed-size header, payload, and CRC32C checksum.
-- Use `cmd/tools/replay` to inspect or decode records.
-
-## Mermaid Diagrams
-
-### Project Flow
-
+## Architecture
 ```mermaid
-flowchart TD
-  subgraph Record_Mode
-    Config[config.json] --> Ops[ops.Load]
-    Ops --> Trader[cmd/trader]
-    Trader -->|OrderIntent/RiskDecision
-    /OrderAck/Fill| Bus[bus.Queue]
-    Bus --> WALWriter[recorder.Writer]
-    WALWriter --> WAL[WAL segments]
-    Trader --> Snapshot[state.WriteSnapshot]
-  end
+---
+config:
+    markdownAutoWrap: false
+    flowchart:
+        wrappingWidth: 1000
+---
 
-  subgraph Replay_Mode
-    WAL --> Playback[recorder.Playback]
-    Playback --> ReplayBus[bus.Queue]
-    ReplayBus --> Apply[applyReplayEvent]
-    Apply --> Orders[og.StateMachine]
-    Apply --> Positions[state.PositionReducer]
-    Positions --> Verify["state.CompareSnapshots (optional)"]
-  end
+graph TB
+    EWS[external web socket] ===|"[TCP]"| Ingest
 
-  subgraph Market_Data
-    MDG[cmd/mdg] --> Normalize[mdg.Normalizer]
-    Normalize --> MDBus[bus.Queue]
-    MDBus --> MDWAL[recorder.Writer]
-  end
-```
+    PPW[paper work]
+    PBE[playback engine]
+    PBE -....- WAL 
+    PBE ----->|"[CLI]"| Core
+    PPW ---->|"[CLI]"| Core
 
-### Architecture
+    subgraph Pod[Pod]
+        direction TB %%
 
-```mermaid
-flowchart LR
-  subgraph cmd
-    Trader[cmd/trader]
-    MDG[cmd/mdg]
-    ReplayTool[cmd/tools/replay]
-  end
+        style Pod fill:#1a1a1a
+        subgraph Ingest["Ingest [shard by platform]"]
+            direction TB %%
+            style Ingest fill:#3a6a6a
 
-  subgraph internal
-    ops[ops]
-    schema[schema]
-    codec[codec]
-    bus[bus]
-    recorder[recorder]
-    og[og]
-    risk[risk]
-    state[state]
-    mdg[mdg]
-  end
+            MKD[market Data]
+            NML[normalizer]
 
-  Trader --> ops --> schema
-  Trader --> risk --> schema
-  Trader --> og --> schema
-  Trader --> state --> schema
-  Trader --> codec --> schema
-  Trader --> bus
-  Trader --> recorder
+            MKD ==> NML
+        end
 
-  MDG --> mdg --> schema
-  MDG --> codec --> schema
-  MDG --> bus
-  MDG --> recorder
+        NML ==>|"[UDS]"| Core
 
-  ReplayTool --> recorder
-  ReplayTool --> codec --> schema
+        subgraph Core["Core [shard by api+symbol]"]
+            direction TB %%
+            style Core fill:#3a5a3a
+            
+            IMB[in-memory bus]
+            STG[strategy runtime]
+            RSK[risk  engine]
+            RKF[/validate order intent/]
+            RDC[reducer]
+            
+
+            IMB ==> STG ==>|order intent| RSK
+            IMB ==> RDC
+            RDC -.- STG & RSK
+            RSK ==> RKF
+        end
+
+        PY <-.->|"[UDS]
+        Call Python if necessary"| STG
+
+        subgraph PY["python calc"]
+            direction TB %%
+            style PY fill:#5a3a5a
+            AI[ai calculation]
+        end
+
+        RKF ==>|"[UDS]
+        send available 
+        order intent"| Order
+
+        subgraph Order["Order [shard by platform]"]
+            direction TB %%
+            style Order fill:#3a6a6a
+            
+            OFI[/asset risk management risk control/]
+            OEN[encoder]
+            OGW[gateway]
+
+            OFI ==> OEN ==> OGW
+        end
+    end
+
+    OGW ===>|"[TCP]"| EAPI
+    EAPI[external API]
+
+
+    EWS2[external web socket] ===|"[TCP]"| Risk
+    RKF -.->|"[TCP]
+    async send"| Risk -.->|"[TCP]
+    async update"| OFI
+    subgraph Risk["Risk (assets risk management)"]
+        direction TB %%
+        style Risk fill:#aa3a3a
+    end
+
+
+    
+    NML -.->|"[TCP]
+    async write"| WAL
+
+    RKF -.->|"[TCP]
+    async write"| WAL
+
+    OFI -...->|"[TCP]
+    async write"| WAL
+
+    OGW -.->|"[TCP]
+    async write"| WAL
+
+    IMB ---|"[UDS]
+    send order intent result 
+    back to in-memory bus"| OGW
+    subgraph WAL
+        direction TB %%
+        style WAL fill:#0a3a5a
+
+        WR[writer/reader]
+        DB[(storage database)]
+        
+        WR --> DB
+    end
 ```
