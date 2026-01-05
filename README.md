@@ -1,4 +1,4 @@
-## Architecture
+## Architecture Overview
 ```mermaid
 ---
 config:
@@ -8,12 +8,12 @@ config:
 ---
 
 graph TB
-    EWS[external web socket] ===|"[TCP]"| Ingest
+    EWS[external web socket] ===|"[WS]"| Ingest
 
     PPW[paper work]
     PBE[playback engine]
-    PBE -....- WAL 
-    PBE ----->|"[CLI]"| Core
+    PBE -....-|"[gRPC]"| WAL 
+    PBE ----->|"[gRPC]"| Core
     PPW ---->|"[CLI]"| Core
 
     subgraph Pod[Pod]
@@ -74,13 +74,13 @@ graph TB
         end
     end
 
-    OGW ===>|"[TCP]"| EAPI
+    OGW ===>|"[Restful API]"| EAPI
     EAPI[external API]
 
 
-    EWS2[external web socket] ===|"[TCP]"| Risk
-    RKF -.->|"[TCP]
-    async send"| Risk -.->|"[TCP]
+    EWS2[external web socket] ===|"[gRPC]"| Risk
+    RKF -.->|"[gRPC]
+    async send"| Risk -.->|"[gRPC]
     async update"| OFI
     subgraph Risk["Risk (assets risk management)"]
         direction TB %%
@@ -89,16 +89,16 @@ graph TB
 
 
     
-    NML -.->|"[TCP]
+    NML -.->|"[gRPC]
     async write"| WAL
 
-    RKF -.->|"[TCP]
+    RKF -.->|"[gRPC]
     async write"| WAL
 
-    OFI -...->|"[TCP]
+    OFI -...->|"[gRPC]
     async write"| WAL
 
-    OGW -.->|"[TCP]
+    OGW -.->|"[gRPC]
     async write"| WAL
 
     IMB ---|"[UDS]
