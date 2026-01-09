@@ -15,8 +15,15 @@ __pycache__
 # Log
 *.log
 
+# Agent
+AGENTS*.md
+SPEC.md
+TASK.md
+.reference
+.specs
+.tasks
+
 # Others
 *.yaml
 *.build
-AGENTS*.md
-.reference
+

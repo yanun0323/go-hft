@@ -1,11 +1,12 @@
-package marketdata
+package marketdata_old
 
 import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 
-	"github.com/yanun0323/errors"
+	"main/internal/errors"
+
 	"github.com/yanun0323/pkg/sys"
 	"github.com/yanun0323/pkg/ws"
 )
@@ -55,7 +56,7 @@ func (repo *BtccPrivate) StartWebsocketAndAuth(ctx context.Context) error {
 			}
 
 			if resp.Error != nil || resp.Result.Status != "success" {
-				return false, errors.Errorf("invalid authenticate response: %v", resp)
+				return false, errors.New("invalid authenticate")
 			}
 
 			return true, nil
@@ -160,7 +161,7 @@ func (repo *BtccPrivate) SubscribeOrder(ctx context.Context, market string) erro
 			}
 
 			if resp.Error != nil || resp.Result.Status != "success" {
-				return false, errors.Errorf("invalid authenticate response: %v", resp)
+				return false, errors.New("invalid authenticate")
 			}
 
 			return true, nil

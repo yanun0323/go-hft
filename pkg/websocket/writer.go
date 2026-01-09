@@ -11,20 +11,20 @@ var (
 	// ErrNotConnected is returned when sending while the writer is disconnected.
 	ErrNotConnected = errors.New("websocket: not connected")
 	// ErrQueueFull is returned when the outbound queue cannot accept more frames.
-	ErrQueueFull    = errors.New("websocket: outbound queue full")
+	ErrQueueFull = errors.New("websocket: outbound queue full")
 )
 
-// OutboundFrame represents a queued write payload.
-type OutboundFrame struct {
+// outboundFrame represents a queued write payload.
+type outboundFrame struct {
 	// MsgType is the WebSocket message type for the payload.
 	MsgType MessageType
 	// Buf is the payload buffer to send.
-	Buf     []byte
-	pool    *OutboundPool
+	Buf  []byte
+	pool *outboundPool
 }
 
 // Release returns the payload buffer and the frame to the pool.
-func (f *OutboundFrame) Release() {
+func (f *outboundFrame) Release() {
 	if f == nil || f.pool == nil {
 		return
 	}
@@ -36,66 +36,66 @@ func (f *OutboundFrame) Release() {
 	f.pool.pool.Put(f)
 }
 
-// OutboundPool recycles outbound frames and buffers.
-type OutboundPool struct {
-	buffers *BufferPool
+// outboundPool recycles outbound frames and buffers.
+type outboundPool struct {
+	buffers *bufferPool
 	pool    sync.Pool
 }
 
-// NewOutboundPool creates an OutboundPool.
-func NewOutboundPool(buffers *BufferPool) *OutboundPool {
-	op := &OutboundPool{buffers: buffers}
+// newOutboundPool creates an OutboundPool.
+func newOutboundPool(buffers *bufferPool) *outboundPool {
+	op := &outboundPool{buffers: buffers}
 	op.pool.New = func() any {
-		return &OutboundFrame{}
+		return &outboundFrame{}
 	}
 	return op
 }
 
 // New creates an outbound frame backed by a pooled buffer.
-func (p *OutboundPool) New(msgType MessageType, buf []byte) *OutboundFrame {
-	frame := p.pool.Get().(*OutboundFrame)
+func (p *outboundPool) New(msgType MessageType, buf []byte) *outboundFrame {
+	frame := p.pool.Get().(*outboundFrame)
 	frame.MsgType = msgType
 	frame.Buf = buf
 	frame.pool = p
 	return frame
 }
 
-// Writer provides a bounded outbound queue with pooling support.
-type Writer struct {
-	pool      *OutboundPool
-	queue     chan *OutboundFrame
+// writer provides a bounded outbound queue with pooling support.
+type writer struct {
+	pool      *outboundPool
+	queue     chan *outboundFrame
 	policy    OverflowPolicy
 	connected atomic.Bool
 }
 
-// NewWriter creates a Writer with a bounded queue.
-func NewWriter(pool *OutboundPool, capacity int, policy OverflowPolicy) *Writer {
+// newWriter creates a Writer with a bounded queue.
+func newWriter(pool *outboundPool, capacity int, policy OverflowPolicy) *writer {
 	if capacity <= 0 {
 		capacity = 1
 	}
-	return &Writer{
+	return &writer{
 		pool:   pool,
-		queue: make(chan *OutboundFrame, capacity),
+		queue:  make(chan *outboundFrame, capacity),
 		policy: policy,
 	}
 }
 
 // SetConnected toggles the writer connection state.
-func (w *Writer) SetConnected(connected bool) {
+func (w *writer) SetConnected(connected bool) {
 	w.connected.Store(connected)
 }
 
 // Acquire returns an outbound frame with a buffer of the requested size.
-func (w *Writer) Acquire(msgType MessageType, size int) *OutboundFrame {
+func (w *writer) Acquire(msgType MessageType, size int) *outboundFrame {
 	if w.pool == nil || w.pool.buffers == nil {
-		return &OutboundFrame{MsgType: msgType, Buf: make([]byte, size)}
+		return &outboundFrame{MsgType: msgType, Buf: make([]byte, size)}
 	}
 	buf := w.pool.buffers.Get(size)
 	return w.pool.New(msgType, buf[:size])
 }
 
 // Enqueue queues a frame for writing according to the overflow policy.
-func (w *Writer) Enqueue(frame *OutboundFrame) bool {
+func (w *writer) Enqueue(frame *outboundFrame) bool {
 	if frame == nil {
 		return false
 	}
@@ -133,7 +133,7 @@ func (w *Writer) Enqueue(frame *OutboundFrame) bool {
 }
 
 // Send copies payload into a pooled buffer and enqueues it.
-func (w *Writer) Send(msgType MessageType, payload []byte) bool {
+func (w *writer) Send(msgType MessageType, payload []byte) bool {
 	if !w.connected.Load() {
 		return false
 	}
@@ -147,7 +147,7 @@ func (w *Writer) Send(msgType MessageType, payload []byte) bool {
 }
 
 // Next waits for the next outbound frame or context cancellation.
-func (w *Writer) Next(ctx context.Context) (*OutboundFrame, bool) {
+func (w *writer) Next(ctx context.Context) (*outboundFrame, bool) {
 	select {
 	case <-ctx.Done():
 		return nil, false
@@ -157,7 +157,7 @@ func (w *Writer) Next(ctx context.Context) (*OutboundFrame, bool) {
 }
 
 // Drain clears the queue and releases all frames.
-func (w *Writer) Drain() {
+func (w *writer) Drain() {
 	for {
 		select {
 		case frame := <-w.queue:

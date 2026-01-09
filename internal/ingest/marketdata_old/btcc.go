@@ -1,10 +1,9 @@
-package marketdata
+package marketdata_old
 
 import (
 	"encoding/json"
+	"main/internal/errors"
 	"main/pkg/exception"
-
-	"github.com/yanun0323/errors"
 )
 
 const (
@@ -37,11 +36,11 @@ type BtccResponse struct {
 
 func (r BtccResponse) Unmarshal(index int, p any) error {
 	if index >= len(r.Params) {
-		return errors.Wrapf(exception.ErrIndexOutOfRange, "index: %d, len: %d", index, len(r.Params))
+		return exception.ErrIndexOutOfRange
 	}
 
 	if err := json.Unmarshal(r.Params[index], p); err != nil {
-		return errors.Wrapf(err, "unmarshal from index: %d", index)
+		return errors.Wrap(err, "unmarshal")
 	}
 
 	return nil

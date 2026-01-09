@@ -1,11 +1,11 @@
-package marketdata
+package marketdata_old
 
 import (
 	"context"
 	"fmt"
+	"main/internal/errors"
 	"strings"
 
-	"github.com/yanun0323/errors"
 	"github.com/yanun0323/logs"
 	"github.com/yanun0323/pkg/sys"
 	"github.com/yanun0323/pkg/ws"
@@ -84,7 +84,7 @@ func (repo *BinancePub) SubscribeDepth(ctx context.Context, symbol string) error
 			}
 
 			if err := ws.WriteJSON(payload); err != nil {
-				return errors.Wrap(err, "write subscribe payload").With("payload", payload)
+				return errors.Wrap(err, "write subscribe payload")
 			}
 
 			return nil
@@ -96,7 +96,7 @@ func (repo *BinancePub) SubscribeDepth(ctx context.Context, symbol string) error
 			}
 
 			if resp.Result != nil {
-				return false, errors.Errorf("subscribe and wait, err: %+v", resp.Result)
+				return false, errors.New("subscribe and wait")
 			}
 			return true, nil
 		},
@@ -161,7 +161,7 @@ func (repo *BinancePub) SubscribePartialBookDepth(ctx context.Context, symbol st
 			}
 
 			if err := ws.WriteJSON(payload); err != nil {
-				return errors.Wrap(err, "write subscribe payload").With("payload", payload)
+				return errors.Wrap(err, "write subscribe payload")
 			}
 
 			return nil
@@ -173,7 +173,7 @@ func (repo *BinancePub) SubscribePartialBookDepth(ctx context.Context, symbol st
 			}
 
 			if resp.Result != nil {
-				return false, errors.Errorf("subscribe and wait, err: %+v", resp.Result)
+				return false, errors.New("subscribe and wait")
 			}
 			return true, nil
 		},

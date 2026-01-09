@@ -5,36 +5,52 @@ import (
 	"time"
 )
 
+const (
+	defaultBackoffMin    = 250 * time.Millisecond
+	defaultBackoffMax    = 5 * time.Second
+	defaultBackoffFactor = 2.0
+	defaultBackoffJitter = 0.2
+
+	fallbackBackoffMin    = 100 * time.Millisecond
+	fallbackBackoffMax    = 5 * time.Second
+	fallbackBackoffFactor = 2.0
+
+	minAttempt            = 1
+	minBackoffFactor      = 1.0
+	maxBackoffJitter      = 1.0
+	jitterRangeMultiplier = 2.0
+)
+
 // DefaultBackoff provides conservative reconnect defaults.
 func DefaultBackoff() Backoff {
 	return Backoff{
-		Min:    250 * time.Millisecond,
-		Max:    5 * time.Second,
-		Factor: 2.0,
-		Jitter: 0.2,
+		Min:    defaultBackoffMin,
+		Max:    defaultBackoffMax,
+		Factor: defaultBackoffFactor,
+		Jitter: defaultBackoffJitter,
 	}
 }
 
 // Next returns the next backoff duration for the given attempt (1-based).
 func (b Backoff) Next(attempt int) time.Duration {
 	if attempt <= 0 {
-		attempt = 1
+		attempt = minAttempt
 	}
 	min := b.Min
 	if min <= 0 {
-		min = 100 * time.Millisecond
+		min = fallbackBackoffMin
 	}
 	max := b.Max
 	if max <= 0 {
-		max = 5 * time.Second
+		max = fallbackBackoffMax
 	}
 	factor := b.Factor
-	if factor <= 1 {
-		factor = 2.0
+	if factor <= minBackoffFactor {
+		factor = fallbackBackoffFactor
 	}
 
 	wait := min
-	for i := 1; i < attempt; i++ {
+	for i := minAttempt; i < attempt; i++ {
 		next := time.Duration(float64(wait) * factor)
 		if next > max {
 			wait = max
@@ -47,9 +63,9 @@ func (b Backoff) Next(attempt int) time.Duration {
 		return wait
 	}
 	jitter := b.Jitter
-	if jitter > 1 {
-		jitter = 1
+	if jitter > maxBackoffJitter {
+		jitter = maxBackoffJitter
 	}
 	delta := float64(wait) * jitter
-	return wait - time.Duration(delta) + time.Duration(rand.Float64()*2*delta)
+	return wait - time.Duration(delta) + time.Duration(rand.Float64()*jitterRangeMultiplier*delta)
 }

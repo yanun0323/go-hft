@@ -5,17 +5,17 @@ import (
 	"sync/atomic"
 )
 
-// Router delivers frames to consumers based on topic.
-type Router struct {
+// router delivers frames to consumers based on topic.
+type router struct {
 	mu        sync.RWMutex
 	topics    map[TopicID][]*Consumer
-	fanOut    FanoutMode
-	framePool *FramePool
+	fanOut    FanOutMode
+	framePool *framePool
 }
 
-// NewRouter creates a router with the specified fan out mode.
-func NewRouter(fanOut FanoutMode, framePool *FramePool) *Router {
-	return &Router{
+// newRouter creates a router with the specified fan out mode.
+func newRouter(fanOut FanOutMode, framePool *framePool) *router {
+	return &router{
 		topics:    make(map[TopicID][]*Consumer),
 		fanOut:    fanOut,
 		framePool: framePool,
@@ -23,7 +23,7 @@ func NewRouter(fanOut FanoutMode, framePool *FramePool) *Router {
 }
 
 // AddConsumer registers a consumer for a topic.
-func (r *Router) AddConsumer(topic TopicID, consumer *Consumer) {
+func (r *router) AddConsumer(topic TopicID, consumer *Consumer) {
 	if r == nil || consumer == nil {
 		return
 	}
@@ -31,15 +31,25 @@ func (r *Router) AddConsumer(topic TopicID, consumer *Consumer) {
 }
 
 // RemoveConsumer unregisters a consumer from a topic.
-func (r *Router) RemoveConsumer(topic TopicID, consumer *Consumer) {
+func (r *router) RemoveConsumer(topic TopicID, consumer *Consumer) {
 	if r == nil || consumer == nil {
 		return
 	}
 	r.removeConsumer(topic, consumer)
 }
 
+// RemoveTopic removes all consumers for a topic.
+func (r *router) RemoveTopic(topic TopicID) {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	delete(r.topics, topic)
+	r.mu.Unlock()
+}
+
 // Route dispatches a frame to all consumers of its topic.
-func (r *Router) Route(frame *Frame) {
+func (r *router) Route(frame *Frame) {
 	if r == nil || frame == nil {
 		return
 	}
@@ -50,7 +60,7 @@ func (r *Router) Route(frame *Frame) {
 		frame.Release()
 		return
 	}
-	if r.fanOut == FanoutCopy {
+	if r.fanOut == FanOutCopy {
 		r.routeCopy(frame, consumers)
 		r.mu.RUnlock()
 		frame.Release()
@@ -60,7 +70,7 @@ func (r *Router) Route(frame *Frame) {
 	r.mu.RUnlock()
 }
 
-func (r *Router) routeShared(frame *Frame, consumers []*Consumer) {
+func (r *router) routeShared(frame *Frame, consumers []*Consumer) {
 	atomic.StoreInt32(&frame.ref, int32(len(consumers)))
 	for _, consumer := range consumers {
 		if consumer == nil || !consumer.enqueue(frame) {
@@ -69,7 +79,7 @@ func (r *Router) routeShared(frame *Frame, consumers []*Consumer) {
 	}
 }
 
-func (r *Router) routeCopy(frame *Frame, consumers []*Consumer) {
+func (r *router) routeCopy(frame *Frame, consumers []*Consumer) {
 	for _, consumer := range consumers {
 		if consumer == nil {
 			continue
@@ -84,7 +94,7 @@ func (r *Router) routeCopy(frame *Frame, consumers []*Consumer) {
 	}
 }
 
-func (r *Router) copyFrame(frame *Frame) *Frame {
+func (r *router) copyFrame(frame *Frame) *Frame {
 	if r.framePool == nil || r.framePool.buffers == nil {
 		return nil
 	}
@@ -96,7 +106,7 @@ func (r *Router) copyFrame(frame *Frame) *Frame {
 	return copyFrame
 }
 
-func (r *Router) addConsumer(topic TopicID, consumer *Consumer) {
+func (r *router) addConsumer(topic TopicID, consumer *Consumer) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	list := r.topics[topic]
@@ -108,7 +118,7 @@ func (r *Router) addConsumer(topic TopicID, consumer *Consumer) {
 	r.topics[topic] = append(list, consumer)
 }
 
-func (r *Router) removeConsumer(topic TopicID, consumer *Consumer) {
+func (r *router) removeConsumer(topic TopicID, consumer *Consumer) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	list := r.topics[topic]

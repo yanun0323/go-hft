@@ -15,7 +15,7 @@ type Frame struct {
 	Meta uint64
 
 	ref  int32
-	pool *FramePool
+	pool *framePool
 }
 
 // Retain increments the ref count for shared fanout.
@@ -36,15 +36,15 @@ func (f *Frame) Release() {
 	}
 }
 
-// FramePool recycles frames and their backing buffers.
-type FramePool struct {
-	buffers *BufferPool
+// framePool recycles frames and their backing buffers.
+type framePool struct {
+	buffers *bufferPool
 	pool    sync.Pool
 }
 
-// NewFramePool creates a pool that recycles frames and buffers.
-func NewFramePool(buffers *BufferPool) *FramePool {
-	fp := &FramePool{buffers: buffers}
+// newFramePool creates a pool that recycles frames and buffers.
+func newFramePool(buffers *bufferPool) *framePool {
+	fp := &framePool{buffers: buffers}
 	fp.pool.New = func() any {
 		return &Frame{}
 	}
@@ -52,7 +52,7 @@ func NewFramePool(buffers *BufferPool) *FramePool {
 }
 
 // New creates a Frame from a payload buffer.
-func (p *FramePool) New(buf []byte) *Frame {
+func (p *framePool) New(buf []byte) *Frame {
 	frame := p.pool.Get().(*Frame)
 	frame.Buf = buf
 	frame.Topic = 0
@@ -62,7 +62,7 @@ func (p *FramePool) New(buf []byte) *Frame {
 	return frame
 }
 
-func (p *FramePool) recycle(frame *Frame) {
+func (p *framePool) recycle(frame *Frame) {
 	if frame.Buf != nil && p.buffers != nil {
 		p.buffers.Put(frame.Buf)
 	}

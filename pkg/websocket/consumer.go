@@ -4,13 +4,13 @@ import "sync"
 
 // Consumer receives routed frames from a topic queue.
 type Consumer struct {
-	queue *FrameQueue
+	queue *frameQueue
 }
 
 // NewConsumer creates a consumer with a bounded queue.
 func NewConsumer(capacity int, policy OverflowPolicy) *Consumer {
 	return &Consumer{
-		queue: NewFrameQueue(capacity, policy),
+		queue: newFrameQueue(capacity, policy),
 	}
 }
 
@@ -45,8 +45,8 @@ func (c *Consumer) enqueue(frame *Frame) bool {
 	return c.queue.Push(frame)
 }
 
-// FrameQueue is a bounded ring buffer for frames.
-type FrameQueue struct {
+// frameQueue is a bounded ring buffer for frames.
+type frameQueue struct {
 	mu       sync.Mutex
 	notEmpty *sync.Cond
 	notFull  *sync.Cond
@@ -58,12 +58,12 @@ type FrameQueue struct {
 	policy   OverflowPolicy
 }
 
-// NewFrameQueue creates a bounded ring buffer.
-func NewFrameQueue(capacity int, policy OverflowPolicy) *FrameQueue {
+// newFrameQueue creates a bounded ring buffer.
+func newFrameQueue(capacity int, policy OverflowPolicy) *frameQueue {
 	if capacity <= 0 {
 		capacity = 1
 	}
-	q := &FrameQueue{
+	q := &frameQueue{
 		buf:    make([]*Frame, capacity),
 		policy: policy,
 	}
@@ -73,7 +73,7 @@ func NewFrameQueue(capacity int, policy OverflowPolicy) *FrameQueue {
 }
 
 // Push enqueues a frame according to the overflow policy.
-func (q *FrameQueue) Push(frame *Frame) bool {
+func (q *frameQueue) Push(frame *Frame) bool {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	for {
@@ -105,7 +105,7 @@ func (q *FrameQueue) Push(frame *Frame) bool {
 }
 
 // Pop dequeues the next frame, blocking until available or closed.
-func (q *FrameQueue) Pop() (*Frame, bool) {
+func (q *frameQueue) Pop() (*Frame, bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	for {
@@ -125,7 +125,7 @@ func (q *FrameQueue) Pop() (*Frame, bool) {
 }
 
 // Close closes the queue and releases pending frames.
-func (q *FrameQueue) Close() {
+func (q *frameQueue) Close() {
 	q.mu.Lock()
 	if q.closed {
 		q.mu.Unlock()
@@ -148,7 +148,7 @@ func (q *FrameQueue) Close() {
 }
 
 // Len returns the number of queued frames.
-func (q *FrameQueue) Len() int {
+func (q *frameQueue) Len() int {
 	q.mu.Lock()
 	size := q.size
 	q.mu.Unlock()

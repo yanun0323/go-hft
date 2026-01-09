@@ -2,56 +2,69 @@ package websocket
 
 import "sync"
 
-// Subscriptions tracks desired and active topic states.
-type Subscriptions struct {
+// DesiredSubscription represents a desired topic subscription.
+type DesiredSubscription struct {
+	Topic TopicID
+	ID    SubscribeID
+}
+
+// subscriptions tracks desired and active topic states per session.
+type subscriptions struct {
 	mu      sync.Mutex
-	desired map[TopicID]int
+	desired map[TopicID]SubscribeID
 	active  map[TopicID]struct{}
 }
 
-// NewSubscriptions creates a subscription tracker.
-func NewSubscriptions() *Subscriptions {
-	return &Subscriptions{
-		desired: make(map[TopicID]int),
+// newSubscriptions creates a subscription tracker.
+func newSubscriptions() *subscriptions {
+	return &subscriptions{
+		desired: make(map[TopicID]SubscribeID),
 		active:  make(map[TopicID]struct{}),
 	}
 }
 
-// Inc increments the desired refcount for a topic.
-// Returns true if this is the first reference.
-func (s *Subscriptions) Inc(topic TopicID) bool {
+// Add registers a desired topic subscription.
+// Returns true if the topic was newly added.
+func (s *subscriptions) Add(topic TopicID, id SubscribeID) bool {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	count := s.desired[topic]
-	count++
-	s.desired[topic] = count
-	return count == 1
+	_, exists := s.desired[topic]
+	if !exists {
+		s.desired[topic] = id
+	}
+	s.mu.Unlock()
+	return !exists
 }
 
-// Dec decrements the desired refcount for a topic.
-// Returns true if the topic is removed.
-func (s *Subscriptions) Dec(topic TopicID) bool {
+// Remove deletes a desired topic subscription.
+// Returns the subscribe id and true if removed.
+func (s *subscriptions) Remove(topic TopicID) (SubscribeID, bool) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	count := s.desired[topic]
-	if count <= 1 {
+	id, ok := s.desired[topic]
+	if ok {
 		delete(s.desired, topic)
 		delete(s.active, topic)
-		return count > 0
 	}
-	s.desired[topic] = count - 1
-	return false
+	s.mu.Unlock()
+	return id, ok
+}
+
+// Get returns the subscribe id for a topic.
+func (s *subscriptions) Get(topic TopicID) (SubscribeID, bool) {
+	s.mu.Lock()
+	id, ok := s.desired[topic]
+	s.mu.Unlock()
+	return id, ok
 }
 
 // MarkActive marks a topic as active.
-func (s *Subscriptions) MarkActive(topic TopicID) {
+func (s *subscriptions) MarkActive(topic TopicID) {
 	s.mu.Lock()
 	s.active[topic] = struct{}{}
 	s.mu.Unlock()
 }
 
 // ClearActive clears all active topics.
-func (s *Subscriptions) ClearActive() {
+func (s *subscriptions) ClearActive() {
 	s.mu.Lock()
 	for topic := range s.active {
 		delete(s.active, topic)
@@ -59,17 +72,25 @@ func (s *Subscriptions) ClearActive() {
 	s.mu.Unlock()
 }
 
-// Desired fills dst with desired topics and returns it.
-func (s *Subscriptions) Desired(dst []TopicID) []TopicID {
+// Desired fills dst with desired subscriptions and returns it.
+func (s *subscriptions) Desired(dst []DesiredSubscription) []DesiredSubscription {
 	s.mu.Lock()
 	if dst == nil {
-		dst = make([]TopicID, 0, len(s.desired))
+		dst = make([]DesiredSubscription, 0, len(s.desired))
 	} else {
 		dst = dst[:0]
 	}
-	for topic := range s.desired {
-		dst = append(dst, topic)
+	for topic, id := range s.desired {
+		dst = append(dst, DesiredSubscription{Topic: topic, ID: id})
 	}
 	s.mu.Unlock()
 	return dst
+}
+
+// Count returns the number of desired topics.
+func (s *subscriptions) Count() int {
+	s.mu.Lock()
+	count := len(s.desired)
+	s.mu.Unlock()
+	return count
 }

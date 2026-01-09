@@ -4,8 +4,13 @@ package enum
 type MarketDataKind uint8
 
 const (
-	MarketDataUnknown MarketDataKind = iota
+	_market_data_beg MarketDataKind = iota
 	MarketDataDepth
-	MarketDataTrade
-	MarketDataQuote
+	MarketDataOrder
+	// MarketDataQuote
+	_market_data_end
 )
+
+func (m MarketDataKind) IsAvailable() bool {
+	return m > _market_data_beg && m < _market_data_end
+}

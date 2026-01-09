@@ -1,16 +1,14 @@
-package marketdata
+package marketdata_old
 
 import (
 	"context"
-
+	"main/internal/errors"
 	"strconv"
 
+	"github.com/yanun0323/decimal"
 	"github.com/yanun0323/logs"
 	"github.com/yanun0323/pkg/sys"
 	"github.com/yanun0323/pkg/ws"
-
-	"github.com/yanun0323/decimal"
-	"github.com/yanun0323/errors"
 )
 
 type BtccPub struct {

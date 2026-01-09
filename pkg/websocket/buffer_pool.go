@@ -1,47 +1,152 @@
 package websocket
 
 import (
+	"sort"
 	"sync"
 )
 
-// BufferPool provides bucketed []byte pooling by size class.
-type BufferPool struct {
-	pool *sync.Pool
+var defaultBufferPoolBuckets = []int64{
+	1 << 4,
+	1 << 8,
+	1 << 12,
+	1 << 16,
+	1 << 32,
+	1<<63 - 1,
 }
 
-// DefaultBufferPool returns a pool with common size buckets.
-func DefaultBufferPool() *BufferPool {
-	return NewBufferPool(64 << 10)
+type bufferPool struct {
+	sizes []int
+	pools []*sync.Pool
 }
 
-// NewBufferPool creates a bucketed pool using the provided sizes.
-// Sizes are rounded to ascending unique values.
-func NewBufferPool(size int64) *BufferPool {
-	return &BufferPool{
-		pool: &sync.Pool{
+func defaultBufferPool() *bufferPool {
+	return newBufferPool(defaultBufferPoolBuckets...)
+}
+
+func newBufferPool(sizes ...int64) *bufferPool {
+	cleaned := normalizeBucketSizes(sizes)
+	if len(cleaned) == 0 {
+		cleaned = normalizeBucketSizes(defaultBufferPoolBuckets)
+	}
+	pools := make([]*sync.Pool, len(cleaned))
+	for i, size := range cleaned {
+		bucketSize := size
+		pools[i] = &sync.Pool{
 			New: func() any {
-				return make([]byte, size)
+				return make([]byte, bucketSize)
 			},
-		},
+		}
+	}
+	return &bufferPool{
+		sizes: cleaned,
+		pools: pools,
 	}
 }
 
-// Get returns a buffer with length size and capacity from the nearest bucket.
-func (p *BufferPool) Get(size int) []byte {
-	if size <= 0 {
+func (p *bufferPool) InitSize() int {
+	if p == nil || len(p.sizes) == 0 {
+		return 0
+	}
+
+	return p.sizeAt(0)
+}
+
+func (p *bufferPool) Get(size int) []byte {
+	if p == nil || size <= 0 || len(p.pools) == 0 {
 		return nil
 	}
 
-	buf := p.pool.Get().([]byte)
+	idx := p.bucketIndex(size)
+	if idx < 0 {
+		return make([]byte, size)
+	}
+
+	buf := p.poolAt(idx).Get().([]byte)
+	if cap(buf) < size {
+		return make([]byte, size)
+	}
 	return buf[:size]
 }
 
-// Put returns a buffer to the pool when its capacity matches a bucket.
-func (p *BufferPool) Put(buf []byte) {
-	if buf == nil {
+func (p *bufferPool) Put(buf []byte) {
+	if p == nil || buf == nil {
 		return
 	}
-
+	size := cap(buf)
+	idx := p.bucketIndex(size)
+	if idx < 0 || p.sizeAt(idx) != size {
+		return
+	}
 	buf = buf[:0]
-	p.pool.Put(buf)
+	p.poolAt(idx).Put(buf)
+}
+
+func (p *bufferPool) EnsureSize(size int) int {
+	if p == nil || size <= 0 {
+		return 0
+	}
+	idx := p.bucketIndex(size)
+	if idx < 0 {
+		return 0
+	}
+	return p.sizeAt(idx)
+}
+
+func (p *bufferPool) bucketIndex(size int) int {
+	idx := sort.SearchInts(p.sizes, size)
+	if idx >= len(p.sizes) {
+		return -1
+	}
+	return idx
+}
+
+func (p *bufferPool) NextBucketSize(size int) int {
+	if p == nil || size <= 0 {
+		return 0
+	}
+	idx := sort.SearchInts(p.sizes, size)
+	if idx < len(p.sizes) && p.sizes[idx] == size {
+		idx++
+	}
+	if idx >= len(p.sizes) {
+		return 0
+	}
+	return p.sizes[idx]
+}
+
+func (p *bufferPool) poolAt(idx int) *sync.Pool {
+	pool := p.pools[idx]
+	return pool
+}
+
+func (p *bufferPool) sizeAt(idx int) int {
+	size := p.sizes[idx]
+	return size
+}
+
+func normalizeBucketSizes(sizes []int64) []int {
+	if len(sizes) == 0 {
+		return nil
+	}
+	maxInt := int(^uint(0) >> 1)
+	filtered := make([]int, 0, len(sizes))
+	for _, size := range sizes {
+		if size <= 0 || size > int64(maxInt) {
+			continue
+		}
+		filtered = append(filtered, int(size))
+	}
+	if len(filtered) == 0 {
+		return nil
+	}
+	sort.Ints(filtered)
+	out := filtered[:0]
+	last := 0
+	for i, size := range filtered {
+		if i == 0 || size != last {
+			out = append(out, size)
+			last = size
+		}
+	}
+	return out
 }
