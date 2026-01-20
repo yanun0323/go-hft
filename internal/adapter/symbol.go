@@ -1,4 +1,4 @@
-package model
+package adapter
 
 type Symbol uint16
 

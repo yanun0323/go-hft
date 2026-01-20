@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"main/internal/adapter"
+	"main/internal/adapter/enum"
 	"main/internal/ingest"
-	"main/internal/model"
-	"main/internal/model/enum"
 	"main/pkg/uds"
 	"main/pkg/websocket"
 	"net"
@@ -32,8 +32,8 @@ const (
 )
 
 var (
-	dummyDepthPayload = model.Depth{}.Encode(nil)
-	dummyOrderPayload = model.Order{}.Encode(nil)
+	dummyDepthPayload = adapter.Depth{}.Encode(nil)
+	dummyOrderPayload = adapter.Order{}.Encode(nil)
 )
 
 func main() {
@@ -209,13 +209,6 @@ func handleConn(ctx context.Context, conn *net.UnixConn, md *ingest.MarketData, 
 			topic:    req.Topic,
 			arg:      argStr,
 		}
-		writeMu.Lock()
-		err = writeDummyResponse(conn, req)
-		writeMu.Unlock()
-		if err != nil {
-			log.Printf("write response error: %v", err)
-			return
-		}
 	}
 }
 
@@ -266,21 +259,6 @@ func apiKeyFromRequest(req ingest.MarketDataRequest) (string, error) {
 	default:
 		return "", ingest.ErrInvalidMarketDataRequest
 	}
-}
-
-func writeDummyResponse(conn *net.UnixConn, req ingest.MarketDataRequest) error {
-	if conn == nil {
-		return ingest.ErrInvalidMarketDataRequest
-	}
-	kind, ok := ingest.KindFromTopic(req.Topic)
-	if !ok {
-		return ingest.ErrInvalidMarketDataRequest
-	}
-	payload, err := payloadForKind(kind)
-	if err != nil {
-		return err
-	}
-	return writeResponse(conn, req.Platform, req.Topic, req.Arg, payload)
 }
 
 func writeFull(conn *net.UnixConn, buf []byte) error {

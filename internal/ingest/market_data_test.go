@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"testing"
 
-	"main/internal/model"
-	"main/internal/model/enum"
+	"main/internal/adapter"
+	"main/internal/adapter/enum"
 )
 
 func TestMarketDataRequestEncodeDecodeRoundTrip(t *testing.T) {
@@ -36,7 +36,7 @@ func TestMarketDataRequestEncodeDecodeRoundTrip(t *testing.T) {
 
 func TestMarketDataArgDepthEncodeDecodeRoundTrip(t *testing.T) {
 	orig := MarketDataArgDepth{
-		Symbol:   model.Symbol(42),
+		Symbol:   adapter.Symbol(42),
 		Interval: []byte("100ms"),
 	}
 
@@ -58,7 +58,7 @@ func TestMarketDataArgDepthEncodeDecodeRoundTrip(t *testing.T) {
 
 func TestMarketDataArgOrderEncodeDecodeRoundTrip(t *testing.T) {
 	orig := MarketDataArgOrder{
-		Symbol: model.Symbol(7),
+		Symbol: adapter.Symbol(7),
 		APIKey: []byte("key-123"),
 	}
 

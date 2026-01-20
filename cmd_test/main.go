@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"main/internal/adapter"
+	"main/internal/adapter/enum"
 	"main/internal/ingest"
-	"main/internal/model"
-	"main/internal/model/enum"
 	"main/pkg/uds"
 	"net"
 	"os"
@@ -123,7 +123,7 @@ func run() error {
 		}
 		log.Printf("resp platform=%d topic=%d arg=%s payload=%dB", resp.Platform, resp.Topic, resp.Arg, len(resp.Payload))
 		if resp.Kind == enum.MarketDataDepth && len(resp.Payload) > 0 {
-			depth := model.Depth{}.Decode(resp.Payload)
+			depth := adapter.Depth{}.Decode(resp.Payload)
 			log.Printf("depth:\n%+v", depth)
 		}
 	}
@@ -180,9 +180,9 @@ func readResponse(conn *net.UnixConn) (response, error) {
 func payloadSize(kind enum.MarketDataKind) (int, error) {
 	switch kind {
 	case enum.MarketDataDepth:
-		return model.Depth{}.SizeInByte(), nil
+		return adapter.Depth{}.SizeInByte(), nil
 	case enum.MarketDataOrder:
-		return model.Order{}.SizeInByte(), nil
+		return adapter.Order{}.SizeInByte(), nil
 	default:
 		return 0, fmt.Errorf("unknown kind: %d", kind)
 	}
@@ -282,7 +282,7 @@ func buildArg(topic enum.Topic, argText string, symbolID int, interval string, a
 	if symbolID < 0 || symbolID > maxUint16 {
 		return nil, errors.New("missing arg; use -arg or -symbol-id")
 	}
-	symbol := model.Symbol(symbolID)
+	symbol := adapter.Symbol(symbolID)
 	switch topic {
 	case enum.TopicDepth:
 		if interval == "" {

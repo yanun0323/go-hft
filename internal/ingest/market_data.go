@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"main/internal/adapter"
+	"main/internal/adapter/enum"
 	binance "main/internal/ingest/binance"
-	"main/internal/model"
-	"main/internal/model/enum"
 	"main/pkg/websocket"
 	"sync"
 	"sync/atomic"
@@ -260,7 +260,7 @@ func (m *MarketData) getOrCreateGroup(ctx context.Context, platform enum.Platfor
 func newGroup(platform enum.Platform, apiKey string) (*wsGroup, error) {
 	switch platform {
 	case enum.PlatformBinance:
-		codec := binance.NewDynamicCodec()
+		codec := binance.NewCodec()
 		group := &wsGroup{
 			codec:      codec,
 			topics:     make(map[topicKey]*topicState),
@@ -405,12 +405,12 @@ type MarketDataRequest struct {
 }
 
 type MarketDataArgDepth struct {
-	Symbol   model.Symbol
+	Symbol   adapter.Symbol
 	Interval []byte
 }
 
 type MarketDataArgOrder struct {
-	Symbol model.Symbol
+	Symbol adapter.Symbol
 	APIKey []byte
 }
 
@@ -471,7 +471,7 @@ func DecodeMarketDataArgDepth(src []byte) (MarketDataArgDepth, error) {
 	if len(src) < 2 {
 		return arg, ErrInvalidMarketDataRequest
 	}
-	arg.Symbol = model.Symbol(binary.BigEndian.Uint16(src[0:2]))
+	arg.Symbol = adapter.Symbol(binary.BigEndian.Uint16(src[0:2]))
 	if len(src) > 2 {
 		arg.Interval = src[2:]
 	}
@@ -501,7 +501,7 @@ func DecodeMarketDataArgOrder(src []byte) (MarketDataArgOrder, error) {
 	if len(src) < 2 {
 		return arg, ErrInvalidMarketDataRequest
 	}
-	arg.Symbol = model.Symbol(binary.BigEndian.Uint16(src[0:2]))
+	arg.Symbol = adapter.Symbol(binary.BigEndian.Uint16(src[0:2]))
 	if len(src) > 2 {
 		arg.APIKey = src[2:]
 	}

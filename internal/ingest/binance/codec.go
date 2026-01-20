@@ -19,8 +19,8 @@ var (
 	successValue   = []byte("success")
 )
 
-// DynamicCodec supports runtime topic registration for Binance streams.
-type DynamicCodec struct {
+// Codec supports runtime topic registration for Binance streams.
+type Codec struct {
 	mu           sync.RWMutex
 	streamByID   map[websocket.TopicID][]byte
 	streamLookup map[uint64]websocket.TopicID
@@ -31,9 +31,9 @@ type DynamicCodec struct {
 	authEnabled  bool
 }
 
-// NewDynamicCodec creates a codec that can register topics on demand.
-func NewDynamicCodec() *DynamicCodec {
-	return &DynamicCodec{
+// NewCodec creates a codec that can register topics on demand.
+func NewCodec() *Codec {
+	return &Codec{
 		streamByID:   make(map[websocket.TopicID][]byte),
 		streamLookup: make(map[uint64]websocket.TopicID),
 		symbolLookup: make(map[uint64]websocket.TopicID),
@@ -41,7 +41,7 @@ func NewDynamicCodec() *DynamicCodec {
 }
 
 // RegisterAuth configures auth payload metadata for this connection.
-func (c *DynamicCodec) RegisterAuth(topicID websocket.TopicID, apiKey string, reqID uint64) error {
+func (c *Codec) RegisterAuth(topicID websocket.TopicID, apiKey string, reqID uint64) error {
 	if c == nil {
 		return errEmptyTopic
 	}
@@ -58,7 +58,7 @@ func (c *DynamicCodec) RegisterAuth(topicID websocket.TopicID, apiKey string, re
 }
 
 // ClearAuth removes auth payload metadata.
-func (c *DynamicCodec) ClearAuth() {
+func (c *Codec) ClearAuth() {
 	if c == nil {
 		return
 	}
@@ -71,7 +71,7 @@ func (c *DynamicCodec) ClearAuth() {
 }
 
 // Register adds a topic mapping for a stream name.
-func (c *DynamicCodec) Register(topicID websocket.TopicID, topic string) error {
+func (c *Codec) Register(topicID websocket.TopicID, topic string) error {
 	if c == nil {
 		return errEmptyTopic
 	}
@@ -92,7 +92,7 @@ func (c *DynamicCodec) Register(topicID websocket.TopicID, topic string) error {
 }
 
 // Unregister removes a topic mapping.
-func (c *DynamicCodec) Unregister(topicID websocket.TopicID) {
+func (c *Codec) Unregister(topicID websocket.TopicID) {
 	if c == nil {
 		return
 	}
@@ -110,7 +110,7 @@ func (c *DynamicCodec) Unregister(topicID websocket.TopicID) {
 }
 
 // DecodeTopic extracts the topic id from a payload.
-func (c *DynamicCodec) DecodeTopic(payload []byte) (websocket.TopicID, bool) {
+func (c *Codec) DecodeTopic(payload []byte) (websocket.TopicID, bool) {
 	if c == nil {
 		return 0, false
 	}
@@ -131,7 +131,7 @@ func (c *DynamicCodec) DecodeTopic(payload []byte) (websocket.TopicID, bool) {
 }
 
 // EncodeSubscribe builds a Binance subscribe payload.
-func (c *DynamicCodec) EncodeSubscribe(dst []byte, subscribeID websocket.SubscribeID, topic websocket.TopicID) (websocket.MessageType, []byte, error) {
+func (c *Codec) EncodeSubscribe(dst []byte, subscribeID websocket.SubscribeID, topic websocket.TopicID) (websocket.MessageType, []byte, error) {
 	if c.isAuthTopic(topic) {
 		return c.encodeAuth(dst)
 	}
@@ -148,7 +148,7 @@ func (c *DynamicCodec) EncodeSubscribe(dst []byte, subscribeID websocket.Subscri
 }
 
 // EncodeUnsubscribe builds a Binance unsubscribe payload.
-func (c *DynamicCodec) EncodeUnsubscribe(dst []byte, subscribeID websocket.SubscribeID, topic websocket.TopicID) (websocket.MessageType, []byte, error) {
+func (c *Codec) EncodeUnsubscribe(dst []byte, subscribeID websocket.SubscribeID, topic websocket.TopicID) (websocket.MessageType, []byte, error) {
 	if c.isAuthTopic(topic) {
 		return websocket.MessageText, dst[:0], nil
 	}
@@ -164,35 +164,35 @@ func (c *DynamicCodec) EncodeUnsubscribe(dst []byte, subscribeID websocket.Subsc
 	return websocket.MessageText, dst, nil
 }
 
-func (c *DynamicCodec) lookupStreamByID(topic websocket.TopicID) ([]byte, bool) {
+func (c *Codec) lookupStreamByID(topic websocket.TopicID) ([]byte, bool) {
 	c.mu.RLock()
 	stream, ok := c.streamByID[topic]
 	c.mu.RUnlock()
 	return stream, ok
 }
 
-func (c *DynamicCodec) lookupStream(stream []byte) (websocket.TopicID, bool) {
+func (c *Codec) lookupStream(stream []byte) (websocket.TopicID, bool) {
 	c.mu.RLock()
 	id, ok := c.streamLookup[hashBytes(stream)]
 	c.mu.RUnlock()
 	return id, ok
 }
 
-func (c *DynamicCodec) lookupSymbol(symbol []byte) (websocket.TopicID, bool) {
+func (c *Codec) lookupSymbol(symbol []byte) (websocket.TopicID, bool) {
 	c.mu.RLock()
 	id, ok := c.symbolLookup[hashBytes(symbol)]
 	c.mu.RUnlock()
 	return id, ok
 }
 
-func (c *DynamicCodec) isAuthTopic(topic websocket.TopicID) bool {
+func (c *Codec) isAuthTopic(topic websocket.TopicID) bool {
 	c.mu.RLock()
 	enabled := c.authEnabled && c.authTopicID == topic
 	c.mu.RUnlock()
 	return enabled
 }
 
-func (c *DynamicCodec) encodeAuth(dst []byte) (websocket.MessageType, []byte, error) {
+func (c *Codec) encodeAuth(dst []byte) (websocket.MessageType, []byte, error) {
 	c.mu.RLock()
 	apiKey := c.authAPIKey
 	reqID := c.authReqID
@@ -208,7 +208,7 @@ func (c *DynamicCodec) encodeAuth(dst []byte) (websocket.MessageType, []byte, er
 	return websocket.MessageText, dst, nil
 }
 
-func (c *DynamicCodec) isAuthAck(payload []byte) bool {
+func (c *Codec) isAuthAck(payload []byte) bool {
 	c.mu.RLock()
 	enabled := c.authEnabled
 	reqID := c.authReqID
@@ -276,7 +276,7 @@ func bytesContains(haystack []byte, needle []byte) bool {
 	}
 outer:
 	for i := 0; i <= len(haystack)-len(needle); i++ {
-		for j := 0; j < len(needle); j++ {
+		for j := range needle {
 			if haystack[i+j] != needle[j] {
 				continue outer
 			}

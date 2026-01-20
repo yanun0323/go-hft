@@ -1,33 +1,27 @@
-package model
+package adapter
 
 import "strconv"
 
 // Price is a scaled integer. The scale is defined by configuration.
-type Price int64
-
-func (p Price) AppendString(priceScale int, buf []byte) []byte {
-	return appendScaledInt(buf, int64(p), priceScale)
-}
+type Price Decimal
 
 // Quantity is a scaled integer. The scale is defined by configuration.
-type Quantity int64
-
-func (q Quantity) AppendString(quantityScale int, buf []byte) []byte {
-	return appendScaledInt(buf, int64(q), quantityScale)
-}
+type Quantity Decimal
 
 // Notional is a scaled integer. The scale is defined by configuration.
-type Notional int64
-
-func (n Notional) AppendString(nationalScale int, buf []byte) []byte {
-	return appendScaledInt(buf, int64(n), nationalScale)
-}
+type Notional Decimal
 
 // Fee is a scaled integer. The scale is defined by configuration.
-type Fee int64
+type Fee Decimal
 
-func (f Fee) AppendString(feeScale int, buf []byte) []byte {
-	return appendScaledInt(buf, int64(f), feeScale)
+// Decimal
+type Decimal struct {
+	Integer int64
+	Scale   int
+}
+
+func (d Decimal) AppendString(buf []byte) []byte {
+	return appendScaledInt(buf, d.Integer, d.Scale)
 }
 
 func appendScaledInt(buf []byte, value int64, scale int) []byte {
