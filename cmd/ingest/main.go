@@ -11,6 +11,7 @@ import (
 	"main/internal/adapter"
 	"main/internal/adapter/enum"
 	"main/internal/ingest"
+	binance "main/internal/ingest/binance"
 	"main/pkg/uds"
 	"main/pkg/websocket"
 	"net"
@@ -303,15 +304,23 @@ func runConsumer(ctx context.Context, conn *net.UnixConn, md *ingest.MarketData,
 			frame.Release()
 			continue
 		}
-		topic, arg, kind, ok := md.Resolve(group.platform, group.apiKey, frame.Topic)
+		topic, arg, _, ok := md.Resolve(group.platform, group.apiKey, frame.Topic)
 		if !ok {
 			frame.Release()
 			continue
 		}
-		payload, err := payloadForKind(kind)
+		var payload []byte
+		var err error
+		switch group.platform {
+		case enum.PlatformBinance:
+			payload, err = binance.DecodeMarketDataPayload(topic, arg, frame.Buf)
+		default:
+			frame.Release()
+			continue
+		}
 		if err != nil {
 			frame.Release()
-			return
+			continue
 		}
 
 		if writeMu != nil {

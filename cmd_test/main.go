@@ -124,7 +124,7 @@ func run() error {
 		log.Printf("resp platform=%d topic=%d arg=%s payload=%dB", resp.Platform, resp.Topic, resp.Arg, len(resp.Payload))
 		if resp.Kind == enum.MarketDataDepth && len(resp.Payload) > 0 {
 			depth := adapter.Depth{}.Decode(resp.Payload)
-			log.Printf("depth:\n%+v", depth)
+			log.Printf("depth:\n%s", depth.Debug())
 		}
 	}
 }

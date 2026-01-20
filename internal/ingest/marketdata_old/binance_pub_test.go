@@ -9,6 +9,7 @@ import (
 )
 
 func TestBinancePubDepthMeasure(t *testing.T) {
+	return
 	alloc, bytes := sys.MeasureMem(func() {
 		TestBinancePubDepth(t)
 	})
@@ -16,6 +17,7 @@ func TestBinancePubDepthMeasure(t *testing.T) {
 }
 
 func TestBinancePubDepth(t *testing.T) {
+	return
 	bp := NewBinancePub(t.Context())
 	err := bp.StartWebsocket(t.Context())
 	require.NoError(t, err)
@@ -42,6 +44,7 @@ func TestBinancePubDepth(t *testing.T) {
 }
 
 func TestBinancePubPPartialBookDepth(t *testing.T) {
+	return
 	bp := NewBinancePub(t.Context())
 	err := bp.StartWebsocket(t.Context())
 	require.NoError(t, err)

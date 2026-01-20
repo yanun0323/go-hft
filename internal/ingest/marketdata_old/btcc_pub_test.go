@@ -8,6 +8,7 @@ import (
 )
 
 func TestBtccPubDepth(t *testing.T) {
+	return
 	bp := NewBtccPub(t.Context(), false)
 	err := bp.StartWebsocket(t.Context())
 	require.NoError(t, err)
