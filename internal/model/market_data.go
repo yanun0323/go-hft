@@ -7,7 +7,7 @@ type DepthRow struct {
 	Quantity Quantity
 }
 
-// use make codable-gen
+// use `make codable-gen` to generate code
 //
 //go:generate codable
 type Depth struct {
@@ -21,12 +21,12 @@ type Depth struct {
 	AsksLength  int
 }
 
-// use make codable-gen
+// use `make codable-gen` to generate code
 //
 //go:generate codable
 type Order struct {
 	ID           int64
-	SymbolID     uint16
+	SymbolID     Symbol
 	EventTsNano  int64
 	RecvTsNano   int64
 	Platform     enum.Platform

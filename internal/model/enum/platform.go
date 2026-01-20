@@ -3,12 +3,12 @@ package enum
 type Platform uint8
 
 const (
-	platform_beg Platform = iota
+	_platform_beg Platform = iota
 	PlatformBTCC
 	PlatformBinance
-	platform_end
+	_platform_end
 )
 
 func (p Platform) IsAvailable() bool {
-	return p > platform_beg && p < platform_end
+	return p > _platform_beg && p < _platform_end
 }
