@@ -2,6 +2,7 @@ package client
 
 import (
 	"main/pkg/exception"
+	"main/pkg/scanner"
 	"main/pkg/websocket"
 )
 
@@ -33,12 +34,12 @@ func NewDecoder(topics []TopicSpec) *decoder {
 }
 
 func (p *decoder) DecodeTopic(payload []byte) (websocket.TopicID, bool) {
-	if stream, ok := scanStringField(payload, keyStream); ok {
+	if stream, ok := scanner.ScanStringField(payload, keyEvent); ok {
 		if id, exists := p.streamLookup[hashBytes(stream)]; exists {
 			return id, true
 		}
 	}
-	if symbol, ok := scanStringField(payload, keySymbol); ok {
+	if symbol, ok := scanner.ScanStringField(payload, keySymbol); ok {
 		if id, exists := p.symbolLookup[hashBytes(symbol)]; exists {
 			return id, true
 		}
@@ -84,60 +85,10 @@ func (e *encoder) EncodeUnsubscribe(dst []byte, subscribeID websocket.SubscribeI
 	return websocket.MessageText, dst, nil
 }
 
-func isSpace(b byte) bool {
-	return b == ' ' || b == '\t' || b == '\n' || b == '\r'
-}
-
 var (
-	keyStream = []byte(`"stream"`)
+	keyEvent  = []byte(`"e"`)
 	keySymbol = []byte(`"s"`)
 )
-
-func scanStringField(payload []byte, key []byte) ([]byte, bool) {
-	idx := indexOf(payload, key)
-	if idx < 0 {
-		return nil, false
-	}
-	i := idx + len(key)
-	for i < len(payload) && payload[i] != ':' {
-		i++
-	}
-	if i >= len(payload) {
-		return nil, false
-	}
-	i++
-	for i < len(payload) && isSpace(payload[i]) {
-		i++
-	}
-	if i >= len(payload) || payload[i] != '"' {
-		return nil, false
-	}
-	i++
-	start := i
-	for i < len(payload) && payload[i] != '"' {
-		i++
-	}
-	if i >= len(payload) {
-		return nil, false
-	}
-	return payload[start:i], true
-}
-
-func indexOf(payload []byte, key []byte) int {
-	if len(key) == 0 || len(payload) < len(key) {
-		return -1
-	}
-outer:
-	for i := 0; i <= len(payload)-len(key); i++ {
-		for j := 0; j < len(key); j++ {
-			if payload[i+j] != key[j] {
-				continue outer
-			}
-		}
-		return i
-	}
-	return -1
-}
 
 func hashBytes(data []byte) uint64 {
 	const offset64 = 14695981039346656037

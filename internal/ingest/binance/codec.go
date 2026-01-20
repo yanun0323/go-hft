@@ -3,6 +3,7 @@ package client
 import (
 	"errors"
 	"main/pkg/exception"
+	"main/pkg/scanner"
 	"main/pkg/websocket"
 	"sync"
 )
@@ -117,12 +118,12 @@ func (c *Codec) DecodeTopic(payload []byte) (websocket.TopicID, bool) {
 	if c.isAuthAck(payload) {
 		return c.authTopicID, true
 	}
-	if stream, ok := scanStringField(payload, keyStream); ok {
+	if stream, ok := scanner.ScanStringField(payload, keyEvent); ok {
 		if id, exists := c.lookupStream(stream); exists {
 			return id, true
 		}
 	}
-	if symbol, ok := scanStringField(payload, keySymbol); ok {
+	if symbol, ok := scanner.ScanStringField(payload, keySymbol); ok {
 		if id, exists := c.lookupSymbol(symbol); exists {
 			return id, true
 		}
@@ -216,43 +217,16 @@ func (c *Codec) isAuthAck(payload []byte) bool {
 	if !enabled {
 		return false
 	}
-	if id, ok := scanUintField(payload, keyID); !ok || id != reqID {
+	if id, ok := scanner.ScanUintField(payload, keyID); !ok || id != reqID {
 		return false
 	}
-	if result, ok := scanStringField(payload, keyResult); ok {
+	if result, ok := scanner.ScanStringField(payload, keyResult); ok {
 		return isSuccessValue(result)
 	}
-	if status, ok := scanStringField(payload, keyStatus); ok {
+	if status, ok := scanner.ScanStringField(payload, keyStatus); ok {
 		return isSuccessValue(status)
 	}
-	return bytesContains(payload, keySuccessTrue)
-}
-
-func scanUintField(payload []byte, key []byte) (uint64, bool) {
-	idx := indexOf(payload, key)
-	if idx < 0 {
-		return 0, false
-	}
-	i := idx + len(key)
-	for i < len(payload) && payload[i] != ':' {
-		i++
-	}
-	if i >= len(payload) {
-		return 0, false
-	}
-	i++
-	for i < len(payload) && isSpace(payload[i]) {
-		i++
-	}
-	if i >= len(payload) || payload[i] < '0' || payload[i] > '9' {
-		return 0, false
-	}
-	var v uint64
-	for i < len(payload) && payload[i] >= '0' && payload[i] <= '9' {
-		v = v*10 + uint64(payload[i]-'0')
-		i++
-	}
-	return v, true
+	return scanner.BytesContains(payload, keySuccessTrue)
 }
 
 func isSuccessValue(value []byte) bool {
@@ -267,31 +241,12 @@ func isSuccessValue(value []byte) bool {
 	return true
 }
 
-func bytesContains(haystack []byte, needle []byte) bool {
-	if len(needle) == 0 {
-		return true
-	}
-	if len(haystack) < len(needle) {
-		return false
-	}
-outer:
-	for i := 0; i <= len(haystack)-len(needle); i++ {
-		for j := range needle {
-			if haystack[i+j] != needle[j] {
-				continue outer
-			}
-		}
-		return true
-	}
-	return false
-}
-
 func parseSymbolUpper(stream []byte) []byte {
 	if len(stream) == 0 {
 		return nil
 	}
 	end := len(stream)
-	for i := 0; i < len(stream); i++ {
+	for i := range stream {
 		if stream[i] == '@' {
 			end = i
 			break
