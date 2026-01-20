@@ -12,6 +12,7 @@ import (
 	"main/internal/adapter/enum"
 	"main/internal/ingest"
 	binance "main/internal/ingest/binance"
+	"main/pkg/exception"
 	"main/pkg/uds"
 	"main/pkg/websocket"
 	"net"
@@ -213,10 +214,10 @@ func handleConn(ctx context.Context, conn *net.UnixConn, md *ingest.MarketData, 
 	}
 }
 
-func readRequest(conn *net.UnixConn, buf []byte) (ingest.MarketDataRequest, []byte, error) {
-	var req ingest.MarketDataRequest
+func readRequest(conn *net.UnixConn, buf []byte) (adapter.MarketDataRequest, []byte, error) {
+	var req adapter.MarketDataRequest
 	if conn == nil {
-		return req, buf, ingest.ErrInvalidMarketDataRequest
+		return req, buf, exception.ErrInvalidMarketDataRequest
 	}
 
 	var header [reqHeaderSize]byte
@@ -227,7 +228,7 @@ func readRequest(conn *net.UnixConn, buf []byte) (ingest.MarketDataRequest, []by
 	argLen := int(binary.BigEndian.Uint16(header[2:4]))
 	total := reqHeaderSize + argLen
 	if total < reqHeaderSize {
-		return req, buf, ingest.ErrInvalidMarketDataRequest
+		return req, buf, exception.ErrInvalidMarketDataRequest
 	}
 
 	if cap(buf) < total {
@@ -240,25 +241,25 @@ func readRequest(conn *net.UnixConn, buf []byte) (ingest.MarketDataRequest, []by
 		return req, buf, err
 	}
 
-	parsed, _, err := ingest.DecodeMarketDataRequest(buf)
+	parsed, _, err := adapter.DecodeMarketDataRequest(buf)
 	return parsed, buf, err
 }
 
-func apiKeyFromRequest(req ingest.MarketDataRequest) (string, error) {
+func apiKeyFromRequest(req adapter.MarketDataRequest) (string, error) {
 	switch req.Topic {
 	case enum.TopicDepth:
-		if _, err := ingest.DecodeMarketDataArgDepth(req.Arg); err != nil {
+		if _, err := adapter.DecodeMarketDataArgDepth(req.Arg); err != nil {
 			return "", err
 		}
 		return "", nil
 	case enum.TopicOrder:
-		arg, err := ingest.DecodeMarketDataArgOrder(req.Arg)
+		arg, err := adapter.DecodeMarketDataArgOrder(req.Arg)
 		if err != nil {
 			return "", err
 		}
 		return string(arg.APIKey), nil
 	default:
-		return "", ingest.ErrInvalidMarketDataRequest
+		return "", exception.ErrInvalidMarketDataRequest
 	}
 }
 
@@ -347,17 +348,17 @@ func payloadForKind(kind enum.MarketDataKind) ([]byte, error) {
 	case enum.MarketDataOrder:
 		return dummyOrderPayload, nil
 	default:
-		return nil, ingest.ErrInvalidMarketDataRequest
+		return nil, exception.ErrInvalidMarketDataRequest
 	}
 }
 
 func writeResponse(conn *net.UnixConn, platform enum.Platform, topic enum.Topic, arg []byte, payload []byte) error {
 	if conn == nil {
-		return ingest.ErrInvalidMarketDataRequest
+		return exception.ErrInvalidMarketDataRequest
 	}
 	argLen := len(arg)
 	if argLen > maxUint16 {
-		return ingest.ErrInvalidMarketDataRequest
+		return exception.ErrInvalidMarketDataRequest
 	}
 	total := respHeaderSize + argLen + len(payload)
 	buf := make([]byte, total)

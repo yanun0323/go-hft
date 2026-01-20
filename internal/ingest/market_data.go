@@ -2,28 +2,15 @@ package ingest
 
 import (
 	"context"
-	"encoding/binary"
-	"errors"
-	"main/internal/adapter"
 	"main/internal/adapter/enum"
-	binance "main/internal/ingest/binance"
+	"main/internal/ingest/binance"
+	"main/pkg/exception"
 	"main/pkg/websocket"
 	"sync"
 	"sync/atomic"
 )
 
-var (
-	ErrInvalidMarketDataRequest = errors.New("marketdata: invalid request")
-	ErrUnsupportedPlatform      = errors.New("marketdata: unsupported platform")
-	ErrNilConsumer              = errors.New("marketdata: nil consumer")
-	ErrTopicKindMismatch        = errors.New("marketdata: topic kind mismatch")
-	ErrUnknownTopic             = errors.New("marketdata: unknown topic")
-)
-
-const (
-	marketDataReqHeaderSize = 1 + 1 + 2
-	maxUint16               = int(^uint16(0))
-)
+var ()
 
 // MarketData wires UDS requests to platform websocket managers.
 // This is the minimal skeleton; request/response framing can evolve later.
@@ -109,19 +96,20 @@ func KindFromTopic(topic enum.Topic) (enum.MarketDataKind, bool) {
 // Subscribe registers a topic and attaches the consumer to receive frames.
 func (m *MarketData) Subscribe(ctx context.Context, platform enum.Platform, apiKey string, topic enum.Topic, arg []byte, consumer *websocket.Consumer) error {
 	if m == nil {
-		return ErrInvalidMarketDataRequest
+		return exception.ErrInvalidMarketDataRequest
 	}
 	if !platform.IsAvailable() || !topic.IsAvailable() || len(arg) == 0 {
-		return ErrInvalidMarketDataRequest
+		return exception.ErrInvalidMarketDataRequest
 	}
 	if consumer == nil {
-		return ErrNilConsumer
+		return exception.ErrNilConsumer
 	}
 
 	group, err := m.getOrCreateGroup(ctx, platform, apiKey)
 	if err != nil {
 		return err
 	}
+
 	if apiKey != "" {
 		if err := group.ensureAuth(ctx, m, apiKey); err != nil {
 			return err
@@ -145,18 +133,18 @@ func (m *MarketData) Subscribe(ctx context.Context, platform enum.Platform, apiK
 // Unsubscribe detaches the consumer and removes topic registration when no longer used.
 func (m *MarketData) Unsubscribe(platform enum.Platform, apiKey string, topic enum.Topic, arg []byte, consumer *websocket.Consumer) error {
 	if m == nil {
-		return ErrInvalidMarketDataRequest
+		return exception.ErrInvalidMarketDataRequest
 	}
 	if !platform.IsAvailable() || !topic.IsAvailable() || len(arg) == 0 {
-		return ErrInvalidMarketDataRequest
+		return exception.ErrInvalidMarketDataRequest
 	}
 	if consumer == nil {
-		return ErrNilConsumer
+		return exception.ErrNilConsumer
 	}
 
 	group := m.getGroup(platform, apiKey)
 	if group == nil {
-		return ErrUnknownTopic
+		return exception.ErrUnknownTopic
 	}
 	key := topicKey{topic: topic, arg: string(arg)}
 
@@ -164,7 +152,7 @@ func (m *MarketData) Unsubscribe(platform enum.Platform, apiKey string, topic en
 	state := group.topics[key]
 	group.mu.RUnlock()
 	if state == nil {
-		return ErrUnknownTopic
+		return exception.ErrUnknownTopic
 	}
 
 	if err := group.manager.RemoveConsumer(state.subID, consumer); err != nil {
@@ -234,7 +222,7 @@ func (m *MarketData) getGroup(platform enum.Platform, apiKey string) *wsGroup {
 
 func (m *MarketData) getOrCreateGroup(ctx context.Context, platform enum.Platform, apiKey string) (*wsGroup, error) {
 	if !platform.IsAvailable() {
-		return nil, ErrInvalidMarketDataRequest
+		return nil, exception.ErrInvalidMarketDataRequest
 	}
 	key := groupKey{platform: platform, apiKey: apiKey}
 
@@ -283,7 +271,7 @@ func newGroup(platform enum.Platform, apiKey string) (*wsGroup, error) {
 		group.manager = manager
 		return group, nil
 	default:
-		return nil, ErrUnsupportedPlatform
+		return nil, exception.ErrUnsupportedPlatform
 	}
 }
 
@@ -306,7 +294,7 @@ func (g *wsGroup) ensureTopic(m *MarketData, topic enum.Topic, arg []byte) (*top
 
 	kind, ok := KindFromTopic(topic)
 	if !ok {
-		return nil, ErrInvalidMarketDataRequest
+		return nil, exception.ErrInvalidMarketDataRequest
 	}
 	argStr := string(arg)
 	key := topicKey{topic: topic, arg: argStr}
@@ -340,7 +328,7 @@ func (g *wsGroup) ensureTopic(m *MarketData, topic enum.Topic, arg []byte) (*top
 
 func (g *wsGroup) ensureAuth(ctx context.Context, m *MarketData, apiKey string) error {
 	if g == nil || g.manager == nil || g.codec == nil {
-		return ErrInvalidMarketDataRequest
+		return exception.ErrInvalidMarketDataRequest
 	}
 	if apiKey == "" {
 		return nil
@@ -394,132 +382,4 @@ func (g *wsGroup) watchAuth(ctx context.Context, consumer *websocket.Consumer) {
 			return
 		}
 	}
-}
-
-// MarketDataRequest is the minimal UDS request format.
-// Arg slices alias the input buffer; copy if you need to retain them.
-type MarketDataRequest struct {
-	Platform enum.Platform
-	Topic    enum.Topic
-	Arg      []byte
-}
-
-type MarketDataArgDepth struct {
-	Symbol   adapter.Symbol
-	Interval []byte
-}
-
-type MarketDataArgOrder struct {
-	Symbol adapter.Symbol
-	APIKey []byte
-}
-
-// DecodeMarketDataRequest parses a request from a byte buffer.
-// Format:
-// [0] platform (uint8)
-// [1] topic (uint8)
-// [2:4] argLen (uint16, big endian)
-// [4:] arg
-func DecodeMarketDataRequest(src []byte) (MarketDataRequest, int, error) {
-	var req MarketDataRequest
-	if len(src) < marketDataReqHeaderSize {
-		return req, 0, ErrInvalidMarketDataRequest
-	}
-	req.Platform = enum.Platform(src[0])
-	req.Topic = enum.Topic(src[1])
-	argLen := int(binary.BigEndian.Uint16(src[2:4]))
-	total := marketDataReqHeaderSize + argLen
-	if argLen < 0 || total > len(src) {
-		return req, 0, ErrInvalidMarketDataRequest
-	}
-	if !req.Platform.IsAvailable() || !req.Topic.IsAvailable() {
-		return req, 0, ErrInvalidMarketDataRequest
-	}
-	if argLen > 0 {
-		req.Arg = src[marketDataReqHeaderSize : marketDataReqHeaderSize+argLen]
-	}
-	return req, total, nil
-}
-
-// EncodeMarketDataRequest serializes a request into dst.
-func EncodeMarketDataRequest(dst []byte, req MarketDataRequest) ([]byte, error) {
-	if !req.Platform.IsAvailable() || !req.Topic.IsAvailable() {
-		return nil, ErrInvalidMarketDataRequest
-	}
-
-	argLen := len(req.Arg)
-	if argLen > maxUint16 {
-		return nil, ErrInvalidMarketDataRequest
-	}
-	total := marketDataReqHeaderSize + argLen
-	if cap(dst) < total {
-		dst = make([]byte, total)
-	} else {
-		dst = dst[:total]
-	}
-	dst[0] = byte(req.Platform)
-	dst[1] = byte(req.Topic)
-	binary.BigEndian.PutUint16(dst[2:4], uint16(argLen))
-	copy(dst[marketDataReqHeaderSize:], req.Arg)
-	return dst, nil
-}
-
-// DecodeMarketDataArgDepth parses a depth arg payload.
-// Format: [0:2] symbol (uint16, big endian) + interval bytes.
-func DecodeMarketDataArgDepth(src []byte) (MarketDataArgDepth, error) {
-	var arg MarketDataArgDepth
-	if len(src) < 2 {
-		return arg, ErrInvalidMarketDataRequest
-	}
-	arg.Symbol = adapter.Symbol(binary.BigEndian.Uint16(src[0:2]))
-	if len(src) > 2 {
-		arg.Interval = src[2:]
-	}
-	return arg, nil
-}
-
-// EncodeMarketDataArgDepth serializes a depth arg payload.
-func EncodeMarketDataArgDepth(dst []byte, arg MarketDataArgDepth) ([]byte, error) {
-	total := 2 + len(arg.Interval)
-	if total > maxUint16 {
-		return nil, ErrInvalidMarketDataRequest
-	}
-	if cap(dst) < total {
-		dst = make([]byte, total)
-	} else {
-		dst = dst[:total]
-	}
-	binary.BigEndian.PutUint16(dst[0:2], uint16(arg.Symbol))
-	copy(dst[2:], arg.Interval)
-	return dst, nil
-}
-
-// DecodeMarketDataArgOrder parses an order arg payload.
-// Format: [0:2] symbol (uint16, big endian) + apiKey bytes.
-func DecodeMarketDataArgOrder(src []byte) (MarketDataArgOrder, error) {
-	var arg MarketDataArgOrder
-	if len(src) < 2 {
-		return arg, ErrInvalidMarketDataRequest
-	}
-	arg.Symbol = adapter.Symbol(binary.BigEndian.Uint16(src[0:2]))
-	if len(src) > 2 {
-		arg.APIKey = src[2:]
-	}
-	return arg, nil
-}
-
-// EncodeMarketDataArgOrder serializes an order arg payload.
-func EncodeMarketDataArgOrder(dst []byte, arg MarketDataArgOrder) ([]byte, error) {
-	total := 2 + len(arg.APIKey)
-	if total > maxUint16 {
-		return nil, ErrInvalidMarketDataRequest
-	}
-	if cap(dst) < total {
-		dst = make([]byte, total)
-	} else {
-		dst = dst[:total]
-	}
-	binary.BigEndian.PutUint16(dst[0:2], uint16(arg.Symbol))
-	copy(dst[2:], arg.APIKey)
-	return dst, nil
 }

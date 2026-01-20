@@ -1,4 +1,4 @@
-package client
+package binance
 
 import (
 	"errors"
@@ -264,4 +264,36 @@ func parseSymbolUpper(stream []byte) []byte {
 		out[i] = b
 	}
 	return out
+}
+
+var (
+	keyEvent  = []byte(`"e"`)
+	keySymbol = []byte(`"s"`)
+)
+
+func hashBytes(data []byte) uint64 {
+	const offset64 = 14695981039346656037
+	const prime64 = 1099511628211
+	var hash uint64 = offset64
+	for i := range data {
+		hash ^= uint64(data[i])
+		hash *= prime64
+	}
+	return hash
+}
+
+func appendUint(dst []byte, v uint64) []byte {
+	if v == 0 {
+		return append(dst, '0')
+	}
+
+	var buf [20]byte
+	i := len(buf)
+	for v > 0 {
+		i--
+		buf[i] = byte('0' + v%10)
+		v /= 10
+	}
+
+	return append(dst, buf[i:]...)
 }

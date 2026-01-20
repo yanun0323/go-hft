@@ -1,23 +1,21 @@
-package ingest
+package binance
 
 import (
 	"testing"
 
 	"main/internal/adapter"
 	"main/internal/adapter/enum"
-	binance "main/internal/ingest/binance"
 )
 
 func TestDecodeMarketDataPayloadDepthBinance(t *testing.T) {
-	arg, err := EncodeMarketDataArgDepth(nil, MarketDataArgDepth{
-		Symbol:   adapter.Symbol(42),
-		Interval: []byte("100ms"),
+	arg, err := adapter.EncodeMarketDataArgDepth(nil, adapter.MarketDataArgDepth{
+		Symbol: adapter.Symbol(42),
 	})
 	if err != nil {
 		t.Fatalf("encode arg: %v", err)
 	}
 	payload := []byte(`{"e":"depthUpdate","E":1700000000123,"s":"BTCUSDT","U":1,"u":2,"b":[["100.10","1.5"],["99","2"]],"a":[["100.20","3"]]}`)
-	encoded, err := binance.DecodeMarketDataPayload(enum.TopicDepth, arg, payload)
+	encoded, err := DecodeMarketDataPayload(enum.TopicDepth, arg, payload)
 	if err != nil {
 		t.Fatalf("decode payload: %v", err)
 	}
@@ -52,7 +50,7 @@ func TestDecodeMarketDataPayloadDepthBinance(t *testing.T) {
 }
 
 func TestDecodeMarketDataPayloadOrderBinance(t *testing.T) {
-	arg, err := EncodeMarketDataArgOrder(nil, MarketDataArgOrder{
+	arg, err := adapter.EncodeMarketDataArgOrder(nil, adapter.MarketDataArgOrder{
 		Symbol: adapter.Symbol(7),
 		APIKey: []byte("key"),
 	})
@@ -60,7 +58,7 @@ func TestDecodeMarketDataPayloadOrderBinance(t *testing.T) {
 		t.Fatalf("encode arg: %v", err)
 	}
 	payload := []byte(`{"e":"executionReport","E":1700000000123,"s":"BTCUSDT","i":12345,"S":"BUY","o":"LIMIT","f":"GTC","X":"NEW","q":"2.5","p":"30000.01","z":"0.5","T":1700000000456}`)
-	encoded, err := binance.DecodeMarketDataPayload(enum.TopicOrder, arg, payload)
+	encoded, err := DecodeMarketDataPayload(enum.TopicOrder, arg, payload)
 	if err != nil {
 		t.Fatalf("decode payload: %v", err)
 	}

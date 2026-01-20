@@ -94,12 +94,12 @@ func run() error {
 		_ = conn.Close()
 	}()
 
-	req := ingest.MarketDataRequest{
+	req := adapter.MarketDataRequest{
 		Platform: platform,
 		Topic:    topic,
 		Arg:      argPayload,
 	}
-	payload, err := ingest.EncodeMarketDataRequest(nil, req)
+	payload, err := adapter.EncodeMarketDataRequest(nil, req)
 	if err != nil {
 		return err
 	}
@@ -288,12 +288,11 @@ func buildArg(topic enum.Topic, argText string, symbolID int, interval string, a
 		if interval == "" {
 			return nil, errors.New("missing interval; use -interval for depth")
 		}
-		return ingest.EncodeMarketDataArgDepth(nil, ingest.MarketDataArgDepth{
-			Symbol:   symbol,
-			Interval: []byte(interval),
+		return adapter.EncodeMarketDataArgDepth(nil, adapter.MarketDataArgDepth{
+			Symbol: symbol,
 		})
 	case enum.TopicOrder:
-		return ingest.EncodeMarketDataArgOrder(nil, ingest.MarketDataArgOrder{
+		return adapter.EncodeMarketDataArgOrder(nil, adapter.MarketDataArgOrder{
 			Symbol: symbol,
 			APIKey: []byte(apiKey),
 		})
