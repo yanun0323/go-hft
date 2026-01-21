@@ -23,8 +23,8 @@ type TopicDecoder interface {
 // ControlEncoder builds subscribe and unsubscribe payloads.
 // Implementations should write into dst and return a slice backed by dst.
 type ControlEncoder interface {
-	EncodeSubscribe(dst []byte, subscribeID SubscribeID, topic TopicID) (MessageType, []byte, error)
-	EncodeUnsubscribe(dst []byte, subscribeID SubscribeID, topic TopicID) (MessageType, []byte, error)
+	EncodeSubscribe(dst []byte, subscribeID ConnectionID, topic TopicID) (MessageType, []byte, error)
+	EncodeUnsubscribe(dst []byte, subscribeID ConnectionID, topic TopicID) (MessageType, []byte, error)
 }
 
 // MetaFunc derives a frame metadata value from the payload.

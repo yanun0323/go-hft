@@ -27,8 +27,8 @@ func NewMarketData() *MarketData {
 	}
 }
 
-func (m *MarketData) nextSubscribeID() websocket.SubscribeID {
-	return websocket.SubscribeID(m.nextSubID.Add(1))
+func (m *MarketData) nextSubscribeID() websocket.ConnectionID {
+	return websocket.ConnectionID(m.nextSubID.Add(1))
 }
 
 type groupKey struct {
@@ -47,7 +47,7 @@ type wsGroup struct {
 	authReady    atomic.Bool
 	authInit     atomic.Bool
 	authTopicID  websocket.TopicID
-	authSubID    websocket.SubscribeID
+	authSubID    websocket.ConnectionID
 	authRequired bool
 }
 
@@ -56,7 +56,7 @@ type topicState struct {
 	arg      string
 	argBytes []byte
 	topicID  websocket.TopicID
-	subID    websocket.SubscribeID
+	subID    websocket.ConnectionID
 	refCount int
 	kind     enum.MarketDataKind
 }

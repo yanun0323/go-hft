@@ -27,6 +27,20 @@ const (
 	defaultMaxTopicsPerConn = 10
 )
 
+/*
+func (m *Manager) AcquireOutbound(msgType MessageType, size int) *outboundFrame
+func (m *Manager) AddConsumer(id ConnectionID, consumer *Consumer) error
+func (m *Manager) EnqueueOutbound(id ConnectionID, frame *outboundFrame) error
+func (m *Manager) RemoveConsumer(id ConnectionID, consumer *Consumer) error
+func (m *Manager) Run(ctx context.Context) error
+func (m *Manager) Send(id ConnectionID, msgType MessageType, payload []byte) error
+func (m *Manager) Subscribe(id ConnectionID, topic TopicID) error
+func (m *Manager) Unsubscribe(id ConnectionID) error
+func (m *Manager) pickSessionLocked() *session
+func (m *Manager) removeSessionLocked(target *session)
+func (m *Manager) stopAll()
+*/
+
 // Option defines the manager runtime configuration.
 type Option struct {
 	// MaxTopicsPerConn caps topics per session connection. Optional; default 10.
@@ -90,7 +104,7 @@ func (opt *Option) init(dialer Dialer, decoder TopicDecoder, encoder ControlEnco
 }
 
 type subscription struct {
-	id      SubscribeID
+	id      ConnectionID
 	topic   TopicID
 	session *session
 }
@@ -105,7 +119,7 @@ type Manager struct {
 
 	mu            sync.Mutex
 	sessions      []*session
-	subscriptions map[SubscribeID]*subscription
+	subscriptions map[ConnectionID]*subscription
 	topics        map[TopicID]*subscription
 	nextSessionID uint64
 	ctx           context.Context
@@ -140,7 +154,7 @@ func New(dialer Dialer, decoder TopicDecoder, encoder ControlEncoder, option ...
 		bufferPool:    opt.bufferPool,
 		framePool:     opt.framePool,
 		outboundPool:  opt.outboundPool,
-		subscriptions: make(map[SubscribeID]*subscription),
+		subscriptions: make(map[ConnectionID]*subscription),
 		topics:        make(map[TopicID]*subscription),
 	}
 	return manager, nil
@@ -177,7 +191,7 @@ func (m *Manager) Run(ctx context.Context) error {
 }
 
 // Subscribe registers a topic subscription by subscribe id.
-func (m *Manager) Subscribe(id SubscribeID, topic TopicID) error {
+func (m *Manager) Subscribe(id ConnectionID, topic TopicID) error {
 	if m == nil {
 		return ErrBadConfig
 	}
@@ -219,7 +233,7 @@ func (m *Manager) Subscribe(id SubscribeID, topic TopicID) error {
 }
 
 // Unsubscribe removes a subscription by subscribe id.
-func (m *Manager) Unsubscribe(id SubscribeID) error {
+func (m *Manager) Unsubscribe(id ConnectionID) error {
 	if m == nil {
 		return ErrBadConfig
 	}
@@ -250,7 +264,7 @@ func (m *Manager) Unsubscribe(id SubscribeID) error {
 }
 
 // AddConsumer registers a consumer for a subscription.
-func (m *Manager) AddConsumer(id SubscribeID, consumer *Consumer) error {
+func (m *Manager) AddConsumer(id ConnectionID, consumer *Consumer) error {
 	if m == nil {
 		return ErrBadConfig
 	}
@@ -265,7 +279,7 @@ func (m *Manager) AddConsumer(id SubscribeID, consumer *Consumer) error {
 }
 
 // RemoveConsumer unregisters a consumer for a subscription.
-func (m *Manager) RemoveConsumer(id SubscribeID, consumer *Consumer) error {
+func (m *Manager) RemoveConsumer(id ConnectionID, consumer *Consumer) error {
 	if m == nil {
 		return ErrBadConfig
 	}
@@ -280,7 +294,7 @@ func (m *Manager) RemoveConsumer(id SubscribeID, consumer *Consumer) error {
 }
 
 // Send enqueues an outbound message by copying payload.
-func (m *Manager) Send(id SubscribeID, msgType MessageType, payload []byte) error {
+func (m *Manager) Send(id ConnectionID, msgType MessageType, payload []byte) error {
 	if m == nil {
 		return ErrBadConfig
 	}
@@ -312,7 +326,7 @@ func (m *Manager) AcquireOutbound(msgType MessageType, size int) *outboundFrame 
 }
 
 // EnqueueOutbound enqueues a pooled outbound frame.
-func (m *Manager) EnqueueOutbound(id SubscribeID, frame *outboundFrame) error {
+func (m *Manager) EnqueueOutbound(id ConnectionID, frame *outboundFrame) error {
 	if m == nil {
 		return ErrBadConfig
 	}

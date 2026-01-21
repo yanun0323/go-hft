@@ -34,7 +34,7 @@ const maxPayloadLen = int(^uint32(0) >> 1)
 
 type topicSpec struct {
 	ID          websocket.TopicID
-	SubscribeID websocket.SubscribeID
+	SubscribeID websocket.ConnectionID
 	SymbolUpper []byte
 	StreamName  []byte
 	Label       []byte
@@ -217,7 +217,7 @@ func newBinanceControlEncoder(topics []topicSpec) *binanceControlEncoder {
 	return &binanceControlEncoder{streamByID: streamByID}
 }
 
-func (e *binanceControlEncoder) EncodeSubscribe(dst []byte, subscribeID websocket.SubscribeID, topic websocket.TopicID) (websocket.MessageType, []byte, error) {
+func (e *binanceControlEncoder) EncodeSubscribe(dst []byte, subscribeID websocket.ConnectionID, topic websocket.TopicID) (websocket.MessageType, []byte, error) {
 	stream, ok := e.streamByID[topic]
 	if !ok {
 		return 0, nil, errProtocol
@@ -230,7 +230,7 @@ func (e *binanceControlEncoder) EncodeSubscribe(dst []byte, subscribeID websocke
 	return websocket.MessageText, dst, nil
 }
 
-func (e *binanceControlEncoder) EncodeUnsubscribe(dst []byte, subscribeID websocket.SubscribeID, topic websocket.TopicID) (websocket.MessageType, []byte, error) {
+func (e *binanceControlEncoder) EncodeUnsubscribe(dst []byte, subscribeID websocket.ConnectionID, topic websocket.TopicID) (websocket.MessageType, []byte, error) {
 	stream, ok := e.streamByID[topic]
 	if !ok {
 		return 0, nil, errProtocol

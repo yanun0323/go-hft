@@ -132,7 +132,7 @@ func (c *Codec) DecodeTopic(payload []byte) (websocket.TopicID, bool) {
 }
 
 // EncodeSubscribe builds a Binance subscribe payload.
-func (c *Codec) EncodeSubscribe(dst []byte, subscribeID websocket.SubscribeID, topic websocket.TopicID) (websocket.MessageType, []byte, error) {
+func (c *Codec) EncodeSubscribe(dst []byte, subscribeID websocket.ConnectionID, topic websocket.TopicID) (websocket.MessageType, []byte, error) {
 	if c.isAuthTopic(topic) {
 		return c.encodeAuth(dst)
 	}
@@ -149,7 +149,7 @@ func (c *Codec) EncodeSubscribe(dst []byte, subscribeID websocket.SubscribeID, t
 }
 
 // EncodeUnsubscribe builds a Binance unsubscribe payload.
-func (c *Codec) EncodeUnsubscribe(dst []byte, subscribeID websocket.SubscribeID, topic websocket.TopicID) (websocket.MessageType, []byte, error) {
+func (c *Codec) EncodeUnsubscribe(dst []byte, subscribeID websocket.ConnectionID, topic websocket.TopicID) (websocket.MessageType, []byte, error) {
 	if c.isAuthTopic(topic) {
 		return websocket.MessageText, dst[:0], nil
 	}

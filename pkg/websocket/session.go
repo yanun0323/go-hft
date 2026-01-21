@@ -69,7 +69,7 @@ func (s *session) stop() {
 	}
 }
 
-func (s *session) subscribe(topic TopicID, id SubscribeID) error {
+func (s *session) subscribe(topic TopicID, id ConnectionID) error {
 	if s == nil {
 		return ErrBadConfig
 	}
@@ -86,7 +86,7 @@ func (s *session) subscribe(topic TopicID, id SubscribeID) error {
 	return nil
 }
 
-func (s *session) unsubscribe(topic TopicID, id SubscribeID) error {
+func (s *session) unsubscribe(topic TopicID, id ConnectionID) error {
 	if s == nil {
 		return ErrBadConfig
 	}
@@ -176,7 +176,7 @@ func (s *session) resubscribe() error {
 	return nil
 }
 
-func (s *session) sendSubscribe(id SubscribeID, topic TopicID) error {
+func (s *session) sendSubscribe(id ConnectionID, topic TopicID) error {
 	payload, msgType, err := s.encodeControl(func(dst []byte) (MessageType, []byte, error) {
 		return s.opt.encoder.EncodeSubscribe(dst, id, topic)
 	})
@@ -191,7 +191,7 @@ func (s *session) sendSubscribe(id SubscribeID, topic TopicID) error {
 	return nil
 }
 
-func (s *session) sendUnsubscribe(id SubscribeID, topic TopicID) error {
+func (s *session) sendUnsubscribe(id ConnectionID, topic TopicID) error {
 	payload, msgType, err := s.encodeControl(func(dst []byte) (MessageType, []byte, error) {
 		return s.opt.encoder.EncodeUnsubscribe(dst, id, topic)
 	})

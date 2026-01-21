@@ -5,27 +5,27 @@ import "sync"
 // DesiredSubscription represents a desired topic subscription.
 type DesiredSubscription struct {
 	Topic TopicID
-	ID    SubscribeID
+	ID    ConnectionID
 }
 
 // subscriptions tracks desired and active topic states per session.
 type subscriptions struct {
 	mu      sync.Mutex
-	desired map[TopicID]SubscribeID
+	desired map[TopicID]ConnectionID
 	active  map[TopicID]struct{}
 }
 
 // newSubscriptions creates a subscription tracker.
 func newSubscriptions() *subscriptions {
 	return &subscriptions{
-		desired: make(map[TopicID]SubscribeID),
+		desired: make(map[TopicID]ConnectionID),
 		active:  make(map[TopicID]struct{}),
 	}
 }
 
 // Add registers a desired topic subscription.
 // Returns true if the topic was newly added.
-func (s *subscriptions) Add(topic TopicID, id SubscribeID) bool {
+func (s *subscriptions) Add(topic TopicID, id ConnectionID) bool {
 	s.mu.Lock()
 	_, exists := s.desired[topic]
 	if !exists {
@@ -37,7 +37,7 @@ func (s *subscriptions) Add(topic TopicID, id SubscribeID) bool {
 
 // Remove deletes a desired topic subscription.
 // Returns the subscribe id and true if removed.
-func (s *subscriptions) Remove(topic TopicID) (SubscribeID, bool) {
+func (s *subscriptions) Remove(topic TopicID) (ConnectionID, bool) {
 	s.mu.Lock()
 	id, ok := s.desired[topic]
 	if ok {
@@ -49,7 +49,7 @@ func (s *subscriptions) Remove(topic TopicID) (SubscribeID, bool) {
 }
 
 // Get returns the subscribe id for a topic.
-func (s *subscriptions) Get(topic TopicID) (SubscribeID, bool) {
+func (s *subscriptions) Get(topic TopicID) (ConnectionID, bool) {
 	s.mu.Lock()
 	id, ok := s.desired[topic]
 	s.mu.Unlock()

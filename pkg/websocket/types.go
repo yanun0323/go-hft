@@ -5,8 +5,8 @@ import "time"
 // TopicID is the numeric identifier for a topic.
 type TopicID uint32
 
-// SubscribeID is the numeric identifier for a subscription.
-type SubscribeID uint64
+// ConnectionID is the numeric identifier for the websocket connection of the topic.
+type ConnectionID uint64
 
 // MessageType represents a WebSocket message type.
 // Values match RFC 6455 opcodes where applicable.
