@@ -301,10 +301,6 @@ func runConsumer(ctx context.Context, conn *net.UnixConn, md *ingest.MarketData,
 		if !ok {
 			return
 		}
-		if group.apiKey != "" && !md.AuthReady(group.platform, group.apiKey) {
-			frame.Release()
-			continue
-		}
 		topic, arg, _, ok := md.Resolve(group.platform, group.apiKey, frame.Topic)
 		if !ok {
 			frame.Release()

@@ -15,9 +15,9 @@ var ()
 // MarketData wires UDS requests to platform websocket managers.
 // This is the minimal skeleton; request/response framing can evolve later.
 type MarketData struct {
-	mu        sync.Mutex
-	groups    map[groupKey]*wsGroup
-	nextSubID atomic.Uint64
+	mu          sync.Mutex
+	groups      map[groupKey]*wsGroup
+	currTopicID atomic.Uint32
 }
 
 // NewMarketData initializes a MarketData registry.
@@ -27,8 +27,8 @@ func NewMarketData() *MarketData {
 	}
 }
 
-func (m *MarketData) nextSubscribeID() websocket.ConnectionID {
-	return websocket.ConnectionID(m.nextSubID.Add(1))
+func (m *MarketData) nextTopicID() websocket.TopicID {
+	return websocket.TopicID(m.currTopicID.Add(1))
 }
 
 type groupKey struct {
@@ -37,18 +37,14 @@ type groupKey struct {
 }
 
 type wsGroup struct {
-	mu           sync.RWMutex
-	manager      *websocket.Manager
-	codec        platformCodec
-	topics       map[topicKey]*topicState
-	topicsByID   map[websocket.TopicID]*topicState
-	nextTopicID  atomic.Uint32
-	running      atomic.Bool
-	authReady    atomic.Bool
-	authInit     atomic.Bool
-	authTopicID  websocket.TopicID
-	authSubID    websocket.ConnectionID
-	authRequired bool
+	mu         sync.RWMutex
+	manager    *websocket.Manager
+	codec      platformCodec
+	topics     map[topicKey]*topicState
+	topicsByID map[websocket.TopicID]*topicState
+	running    atomic.Bool
+	apiKey     string
+	authReqID  uint64
 }
 
 type topicState struct {
@@ -56,7 +52,6 @@ type topicState struct {
 	arg      string
 	argBytes []byte
 	topicID  websocket.TopicID
-	subID    websocket.ConnectionID
 	refCount int
 	kind     enum.MarketDataKind
 }
@@ -69,10 +64,11 @@ type topicKey struct {
 type platformCodec interface {
 	websocket.TopicDecoder
 	websocket.ControlEncoder
+
 	Register(topicID websocket.TopicID, topic string) error
 	Unregister(topicID websocket.TopicID)
 	RegisterAuth(topicID websocket.TopicID, apiKey string, reqID uint64) error
-	ClearAuth()
+	EncodeAuth(dst []byte, apiKey string, reqID uint64) (websocket.MessageType, []byte, error)
 }
 
 const (
@@ -110,23 +106,18 @@ func (m *MarketData) Subscribe(ctx context.Context, platform enum.Platform, apiK
 		return err
 	}
 
-	if apiKey != "" {
-		if err := group.ensureAuth(ctx, m, apiKey); err != nil {
-			return err
-		}
-	}
-
 	state, err := group.ensureTopic(m, topic, arg)
 	if err != nil {
 		return err
 	}
-	if err := group.manager.AddConsumer(state.subID, consumer); err != nil {
+	if err := group.manager.AddConsumer(state.topicID, consumer); err != nil {
 		return err
 	}
 
 	group.mu.Lock()
 	state.refCount++
 	group.mu.Unlock()
+
 	return nil
 }
 
@@ -155,7 +146,7 @@ func (m *MarketData) Unsubscribe(platform enum.Platform, apiKey string, topic en
 		return exception.ErrUnknownTopic
 	}
 
-	if err := group.manager.RemoveConsumer(state.subID, consumer); err != nil {
+	if err := group.manager.RemoveConsumer(state.topicID, consumer); err != nil {
 		return err
 	}
 
@@ -171,7 +162,7 @@ func (m *MarketData) Unsubscribe(platform enum.Platform, apiKey string, topic en
 
 	if remove {
 		group.codec.Unregister(state.topicID)
-		_ = group.manager.Unsubscribe(state.subID)
+		_ = group.manager.Unsubscribe(state.topicID)
 	}
 	return nil
 }
@@ -194,21 +185,6 @@ func (m *MarketData) Resolve(platform enum.Platform, apiKey string, topicID webs
 	return state.topic, state.argBytes, state.kind, true
 }
 
-// AuthReady reports whether auth has completed for the group.
-func (m *MarketData) AuthReady(platform enum.Platform, apiKey string) bool {
-	if m == nil || !platform.IsAvailable() {
-		return false
-	}
-	group := m.getGroup(platform, apiKey)
-	if group == nil {
-		return false
-	}
-	if !group.authRequired {
-		return true
-	}
-	return group.authReady.Load()
-}
-
 func (m *MarketData) getGroup(platform enum.Platform, apiKey string) *wsGroup {
 	if m == nil {
 		return nil
@@ -225,6 +201,10 @@ func (m *MarketData) getOrCreateGroup(ctx context.Context, platform enum.Platfor
 		return nil, exception.ErrInvalidMarketDataRequest
 	}
 	key := groupKey{platform: platform, apiKey: apiKey}
+	var authReqID uint64
+	if apiKey != "" {
+		authReqID = uint64(m.nextTopicID())
+	}
 
 	m.mu.Lock()
 	group := m.groups[key]
@@ -238,6 +218,13 @@ func (m *MarketData) getOrCreateGroup(ctx context.Context, platform enum.Platfor
 	if err != nil {
 		m.mu.Unlock()
 		return nil, err
+	}
+	if apiKey != "" {
+		group.authReqID = authReqID
+		if err := group.codec.RegisterAuth(websocket.TopicID(authReqID), apiKey, authReqID); err != nil {
+			m.mu.Unlock()
+			return nil, err
+		}
 	}
 	m.groups[key] = group
 	m.mu.Unlock()
@@ -253,16 +240,27 @@ func newGroup(platform enum.Platform, apiKey string) (*wsGroup, error) {
 			codec:      codec,
 			topics:     make(map[topicKey]*topicState),
 			topicsByID: make(map[websocket.TopicID]*topicState),
+			apiKey:     apiKey,
 		}
 		dialer := websocket.NewDialer(context.Background(), binanceHost, binancePort, binancePath)
 		manager, err := websocket.New(dialer, codec, codec, websocket.Option{
 			FanOut: websocket.FanOutShared,
 			OnConnect: func(ctx context.Context, w websocket.Writer) error {
-				group.authReady.Store(false)
+				group.mu.RLock()
+				groupAPIKey := group.apiKey
+				reqID := group.authReqID
+				group.mu.RUnlock()
+				if groupAPIKey == "" {
+					return nil
+				}
+				msgType, payload, err := codec.EncodeAuth(nil, groupAPIKey, reqID)
+				if err != nil {
+					return err
+				}
+				if !w.Send(msgType, payload) {
+					return websocket.ErrQueueFull
+				}
 				return nil
-			},
-			OnDisconnect: func(err error) {
-				group.authReady.Store(false)
 			},
 		})
 		if err != nil {
@@ -303,12 +301,11 @@ func (g *wsGroup) ensureTopic(m *MarketData, topic enum.Topic, arg []byte) (*top
 		return existing, nil
 	}
 
-	topicID := websocket.TopicID(g.nextTopicID.Add(1))
-	subID := m.nextSubscribeID()
+	topicID := m.nextTopicID()
 	if err := g.codec.Register(topicID, argStr); err != nil {
 		return nil, err
 	}
-	if err := g.manager.Subscribe(subID, topicID); err != nil {
+	if err := g.manager.Subscribe(topicID); err != nil {
 		g.codec.Unregister(topicID)
 		return nil, err
 	}
@@ -318,68 +315,9 @@ func (g *wsGroup) ensureTopic(m *MarketData, topic enum.Topic, arg []byte) (*top
 		arg:      argStr,
 		argBytes: []byte(argStr),
 		topicID:  topicID,
-		subID:    subID,
 		kind:     kind,
 	}
 	g.topics[key] = state
 	g.topicsByID[topicID] = state
 	return state, nil
-}
-
-func (g *wsGroup) ensureAuth(ctx context.Context, m *MarketData, apiKey string) error {
-	if g == nil || g.manager == nil || g.codec == nil {
-		return exception.ErrInvalidMarketDataRequest
-	}
-	if apiKey == "" {
-		return nil
-	}
-	if !g.authInit.CompareAndSwap(false, true) {
-		return nil
-	}
-	g.authRequired = true
-	g.authReady.Store(false)
-
-	g.authTopicID = websocket.TopicID(g.nextTopicID.Add(1))
-	g.authSubID = m.nextSubscribeID()
-
-	if err := g.codec.RegisterAuth(g.authTopicID, apiKey, uint64(g.authSubID)); err != nil {
-		g.authInit.Store(false)
-		g.authRequired = false
-		return err
-	}
-	if err := g.manager.Subscribe(g.authSubID, g.authTopicID); err != nil {
-		g.codec.ClearAuth()
-		g.authInit.Store(false)
-		g.authRequired = false
-		return err
-	}
-
-	authConsumer := websocket.NewConsumer(8, websocket.OverflowDropOldest)
-	if err := g.manager.AddConsumer(g.authSubID, authConsumer); err != nil {
-		g.codec.ClearAuth()
-		_ = g.manager.Unsubscribe(g.authSubID)
-		g.authInit.Store(false)
-		g.authRequired = false
-		return err
-	}
-
-	go g.watchAuth(ctx, authConsumer)
-	return nil
-}
-
-func (g *wsGroup) watchAuth(ctx context.Context, consumer *websocket.Consumer) {
-	if consumer == nil {
-		return
-	}
-	for {
-		frame, ok := consumer.Next()
-		if !ok {
-			return
-		}
-		g.authReady.Store(true)
-		frame.Release()
-		if ctx.Err() != nil {
-			return
-		}
-	}
 }

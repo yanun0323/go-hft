@@ -69,7 +69,7 @@ func (s *session) stop() {
 	}
 }
 
-func (s *session) subscribe(topic TopicID, id ConnectionID) error {
+func (s *session) subscribe(topic TopicID) error {
 	if s == nil {
 		return ErrBadConfig
 	}
@@ -79,14 +79,14 @@ func (s *session) subscribe(topic TopicID, id ConnectionID) error {
 	if !s.connected.Load() {
 		return nil
 	}
-	if err := s.sendSubscribe(id, topic); err != nil {
+	if err := s.sendSubscribe(topic); err != nil {
 		return err
 	}
 	s.subscriptions.MarkActive(topic)
 	return nil
 }
 
-func (s *session) unsubscribe(topic TopicID, id ConnectionID) error {
+func (s *session) unsubscribe(topic TopicID) error {
 	if s == nil {
 		return ErrBadConfig
 	}
@@ -96,7 +96,7 @@ func (s *session) unsubscribe(topic TopicID, id ConnectionID) error {
 	if !s.connected.Load() {
 		return nil
 	}
-	return s.sendUnsubscribe(id, topic)
+	return s.sendUnsubscribe(topic)
 }
 
 func (s *session) run(ctx context.Context) {
@@ -168,7 +168,7 @@ func (s *session) resubscribe() error {
 		return ErrNoEncoder
 	}
 	for _, sub := range desired {
-		if err := s.sendSubscribe(sub.ID, sub.Topic); err != nil {
+		if err := s.sendSubscribe(sub.Topic); err != nil {
 			return err
 		}
 		s.subscriptions.MarkActive(sub.Topic)
@@ -176,9 +176,9 @@ func (s *session) resubscribe() error {
 	return nil
 }
 
-func (s *session) sendSubscribe(id ConnectionID, topic TopicID) error {
+func (s *session) sendSubscribe(topic TopicID) error {
 	payload, msgType, err := s.encodeControl(func(dst []byte) (MessageType, []byte, error) {
-		return s.opt.encoder.EncodeSubscribe(dst, id, topic)
+		return s.opt.encoder.EncodeSubscribe(dst, topic)
 	})
 	if err != nil {
 		return err
@@ -191,9 +191,9 @@ func (s *session) sendSubscribe(id ConnectionID, topic TopicID) error {
 	return nil
 }
 
-func (s *session) sendUnsubscribe(id ConnectionID, topic TopicID) error {
+func (s *session) sendUnsubscribe(topic TopicID) error {
 	payload, msgType, err := s.encodeControl(func(dst []byte) (MessageType, []byte, error) {
-		return s.opt.encoder.EncodeUnsubscribe(dst, id, topic)
+		return s.opt.encoder.EncodeUnsubscribe(dst, topic)
 	})
 	if err != nil {
 		return err

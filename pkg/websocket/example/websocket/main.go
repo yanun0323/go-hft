@@ -34,7 +34,6 @@ const maxPayloadLen = int(^uint32(0) >> 1)
 
 type topicSpec struct {
 	ID          websocket.TopicID
-	SubscribeID websocket.ConnectionID
 	SymbolUpper []byte
 	StreamName  []byte
 	Label       []byte
@@ -77,7 +76,6 @@ func main() {
 	topics := []topicSpec{
 		{
 			ID:          1,
-			SubscribeID: 1,
 			SymbolUpper: []byte("BTCUSDT"),
 			StreamName:  []byte("btcusdt@depth@100ms"),
 			Label:       []byte("BTCUSDT"),
@@ -108,10 +106,10 @@ func main() {
 
 	consumer := websocket.NewConsumer(4096, websocket.OverflowDropOldest)
 	for _, topic := range topics {
-		if err := manager.Subscribe(topic.SubscribeID, topic.ID); err != nil {
+		if err := manager.Subscribe(topic.ID); err != nil {
 			log.Fatalf("register subscription failed: %v", err)
 		}
-		if err := manager.AddConsumer(topic.SubscribeID, consumer); err != nil {
+		if err := manager.AddConsumer(topic.ID, consumer); err != nil {
 			log.Fatalf("add consumer failed: %v", err)
 		}
 	}
@@ -217,7 +215,7 @@ func newBinanceControlEncoder(topics []topicSpec) *binanceControlEncoder {
 	return &binanceControlEncoder{streamByID: streamByID}
 }
 
-func (e *binanceControlEncoder) EncodeSubscribe(dst []byte, subscribeID websocket.ConnectionID, topic websocket.TopicID) (websocket.MessageType, []byte, error) {
+func (e *binanceControlEncoder) EncodeSubscribe(dst []byte, topic websocket.TopicID) (websocket.MessageType, []byte, error) {
 	stream, ok := e.streamByID[topic]
 	if !ok {
 		return 0, nil, errProtocol
@@ -225,12 +223,12 @@ func (e *binanceControlEncoder) EncodeSubscribe(dst []byte, subscribeID websocke
 	dst = append(dst, `{"method":"SUBSCRIBE","params":["`...)
 	dst = append(dst, stream...)
 	dst = append(dst, `"],"id":`...)
-	dst = appendUint(dst, uint64(subscribeID))
+	dst = appendUint(dst, uint64(topic))
 	dst = append(dst, '}')
 	return websocket.MessageText, dst, nil
 }
 
-func (e *binanceControlEncoder) EncodeUnsubscribe(dst []byte, subscribeID websocket.ConnectionID, topic websocket.TopicID) (websocket.MessageType, []byte, error) {
+func (e *binanceControlEncoder) EncodeUnsubscribe(dst []byte, topic websocket.TopicID) (websocket.MessageType, []byte, error) {
 	stream, ok := e.streamByID[topic]
 	if !ok {
 		return 0, nil, errProtocol
@@ -238,7 +236,7 @@ func (e *binanceControlEncoder) EncodeUnsubscribe(dst []byte, subscribeID websoc
 	dst = append(dst, `{"method":"UNSUBSCRIBE","params":["`...)
 	dst = append(dst, stream...)
 	dst = append(dst, `"],"id":`...)
-	dst = appendUint(dst, uint64(subscribeID))
+	dst = appendUint(dst, uint64(topic))
 	dst = append(dst, '}')
 	return websocket.MessageText, dst, nil
 }

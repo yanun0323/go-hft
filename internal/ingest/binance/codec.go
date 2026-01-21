@@ -58,17 +58,20 @@ func (c *Codec) RegisterAuth(topicID websocket.TopicID, apiKey string, reqID uin
 	return nil
 }
 
-// ClearAuth removes auth payload metadata.
-func (c *Codec) ClearAuth() {
+// EncodeAuth builds the auth payload.
+func (c *Codec) EncodeAuth(dst []byte, apiKey string, reqID uint64) (websocket.MessageType, []byte, error) {
 	if c == nil {
-		return
+		return 0, nil, exception.ErrWebSocketProtocol
 	}
-	c.mu.Lock()
-	c.authTopicID = 0
-	c.authReqID = 0
-	c.authAPIKey = nil
-	c.authEnabled = false
-	c.mu.Unlock()
+	if apiKey == "" {
+		return 0, nil, exception.ErrWebSocketProtocol
+	}
+	dst = append(dst, `{"method":"auth","params":["`...)
+	dst = append(dst, apiKey...)
+	dst = append(dst, `"],"id":`...)
+	dst = appendUint(dst, reqID)
+	dst = append(dst, '}')
+	return websocket.MessageText, dst, nil
 }
 
 // Register adds a topic mapping for a stream name.
@@ -132,7 +135,7 @@ func (c *Codec) DecodeTopic(payload []byte) (websocket.TopicID, bool) {
 }
 
 // EncodeSubscribe builds a Binance subscribe payload.
-func (c *Codec) EncodeSubscribe(dst []byte, subscribeID websocket.ConnectionID, topic websocket.TopicID) (websocket.MessageType, []byte, error) {
+func (c *Codec) EncodeSubscribe(dst []byte, topic websocket.TopicID) (websocket.MessageType, []byte, error) {
 	if c.isAuthTopic(topic) {
 		return c.encodeAuth(dst)
 	}
@@ -143,13 +146,13 @@ func (c *Codec) EncodeSubscribe(dst []byte, subscribeID websocket.ConnectionID, 
 	dst = append(dst, `{"method":"SUBSCRIBE","params":["`...)
 	dst = append(dst, stream...)
 	dst = append(dst, `"],"id":`...)
-	dst = appendUint(dst, uint64(subscribeID))
+	dst = appendUint(dst, uint64(topic))
 	dst = append(dst, '}')
 	return websocket.MessageText, dst, nil
 }
 
 // EncodeUnsubscribe builds a Binance unsubscribe payload.
-func (c *Codec) EncodeUnsubscribe(dst []byte, subscribeID websocket.ConnectionID, topic websocket.TopicID) (websocket.MessageType, []byte, error) {
+func (c *Codec) EncodeUnsubscribe(dst []byte, topic websocket.TopicID) (websocket.MessageType, []byte, error) {
 	if c.isAuthTopic(topic) {
 		return websocket.MessageText, dst[:0], nil
 	}
@@ -160,7 +163,7 @@ func (c *Codec) EncodeUnsubscribe(dst []byte, subscribeID websocket.ConnectionID
 	dst = append(dst, `{"method":"UNSUBSCRIBE","params":["`...)
 	dst = append(dst, stream...)
 	dst = append(dst, `"],"id":`...)
-	dst = appendUint(dst, uint64(subscribeID))
+	dst = appendUint(dst, uint64(topic))
 	dst = append(dst, '}')
 	return websocket.MessageText, dst, nil
 }
@@ -198,15 +201,7 @@ func (c *Codec) encodeAuth(dst []byte) (websocket.MessageType, []byte, error) {
 	apiKey := c.authAPIKey
 	reqID := c.authReqID
 	c.mu.RUnlock()
-	if len(apiKey) == 0 {
-		return 0, nil, exception.ErrWebSocketProtocol
-	}
-	dst = append(dst, `{"method":"auth","params":["`...)
-	dst = append(dst, apiKey...)
-	dst = append(dst, `"],"id":`...)
-	dst = appendUint(dst, reqID)
-	dst = append(dst, '}')
-	return websocket.MessageText, dst, nil
+	return c.EncodeAuth(dst, string(apiKey), reqID)
 }
 
 func (c *Codec) isAuthAck(payload []byte) bool {

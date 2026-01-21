@@ -5,55 +5,46 @@ import "sync"
 // DesiredSubscription represents a desired topic subscription.
 type DesiredSubscription struct {
 	Topic TopicID
-	ID    ConnectionID
 }
 
 // subscriptions tracks desired and active topic states per session.
 type subscriptions struct {
 	mu      sync.Mutex
-	desired map[TopicID]ConnectionID
+	desired map[TopicID]struct{}
 	active  map[TopicID]struct{}
 }
 
 // newSubscriptions creates a subscription tracker.
 func newSubscriptions() *subscriptions {
 	return &subscriptions{
-		desired: make(map[TopicID]ConnectionID),
+		desired: make(map[TopicID]struct{}),
 		active:  make(map[TopicID]struct{}),
 	}
 }
 
 // Add registers a desired topic subscription.
 // Returns true if the topic was newly added.
-func (s *subscriptions) Add(topic TopicID, id ConnectionID) bool {
+func (s *subscriptions) Add(topic TopicID) bool {
 	s.mu.Lock()
 	_, exists := s.desired[topic]
 	if !exists {
-		s.desired[topic] = id
+		s.desired[topic] = struct{}{}
 	}
 	s.mu.Unlock()
 	return !exists
 }
 
 // Remove deletes a desired topic subscription.
-// Returns the subscribe id and true if removed.
-func (s *subscriptions) Remove(topic TopicID) (ConnectionID, bool) {
+// Returns true if removed.
+func (s *subscriptions) Remove(topic TopicID) bool {
 	s.mu.Lock()
-	id, ok := s.desired[topic]
+	_, ok := s.desired[topic]
 	if ok {
 		delete(s.desired, topic)
 		delete(s.active, topic)
 	}
 	s.mu.Unlock()
-	return id, ok
-}
-
-// Get returns the subscribe id for a topic.
-func (s *subscriptions) Get(topic TopicID) (ConnectionID, bool) {
-	s.mu.Lock()
-	id, ok := s.desired[topic]
-	s.mu.Unlock()
-	return id, ok
+	return ok
 }
 
 // MarkActive marks a topic as active.
@@ -80,8 +71,8 @@ func (s *subscriptions) Desired(dst []DesiredSubscription) []DesiredSubscription
 	} else {
 		dst = dst[:0]
 	}
-	for topic, id := range s.desired {
-		dst = append(dst, DesiredSubscription{Topic: topic, ID: id})
+	for topic := range s.desired {
+		dst = append(dst, DesiredSubscription{Topic: topic})
 	}
 	s.mu.Unlock()
 	return dst

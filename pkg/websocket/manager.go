@@ -15,9 +15,8 @@ var (
 	ErrBadConfig              = errors.New("websocket: invalid config")
 	ErrNoPool                 = errors.New("websocket: nil buffer pool")
 	ErrFrameTooLarge          = errors.New("websocket: frame exceeds buffer")
-	ErrDuplicateSubscribeID   = errors.New("websocket: duplicate subscribe id")
 	ErrTopicAlreadySubscribed = errors.New("websocket: topic already subscribed")
-	ErrUnknownSubscribeID     = errors.New("websocket: unknown subscribe id")
+	ErrUnknownTopic           = errors.New("websocket: unknown topic")
 	ErrAlreadyRunning         = errors.New("websocket: manager already running")
 	ErrNotRunning             = errors.New("websocket: manager not running")
 )
@@ -29,13 +28,13 @@ const (
 
 /*
 func (m *Manager) AcquireOutbound(msgType MessageType, size int) *outboundFrame
-func (m *Manager) AddConsumer(id ConnectionID, consumer *Consumer) error
-func (m *Manager) EnqueueOutbound(id ConnectionID, frame *outboundFrame) error
-func (m *Manager) RemoveConsumer(id ConnectionID, consumer *Consumer) error
+func (m *Manager) AddConsumer(topic TopicID, consumer *Consumer) error
+func (m *Manager) EnqueueOutbound(topic TopicID, frame *outboundFrame) error
+func (m *Manager) RemoveConsumer(topic TopicID, consumer *Consumer) error
 func (m *Manager) Run(ctx context.Context) error
-func (m *Manager) Send(id ConnectionID, msgType MessageType, payload []byte) error
-func (m *Manager) Subscribe(id ConnectionID, topic TopicID) error
-func (m *Manager) Unsubscribe(id ConnectionID) error
+func (m *Manager) Send(msgType MessageType, payload []byte) error
+func (m *Manager) Subscribe(topic TopicID) error
+func (m *Manager) Unsubscribe(topic TopicID) error
 func (m *Manager) pickSessionLocked() *session
 func (m *Manager) removeSessionLocked(target *session)
 func (m *Manager) stopAll()
@@ -104,7 +103,6 @@ func (opt *Option) init(dialer Dialer, decoder TopicDecoder, encoder ControlEnco
 }
 
 type subscription struct {
-	id      ConnectionID
 	topic   TopicID
 	session *session
 }
@@ -119,8 +117,7 @@ type Manager struct {
 
 	mu            sync.Mutex
 	sessions      []*session
-	subscriptions map[ConnectionID]*subscription
-	topics        map[TopicID]*subscription
+	subscriptions map[TopicID]*subscription
 	nextSessionID uint64
 	ctx           context.Context
 	running       atomic.Bool
@@ -154,8 +151,7 @@ func New(dialer Dialer, decoder TopicDecoder, encoder ControlEncoder, option ...
 		bufferPool:    opt.bufferPool,
 		framePool:     opt.framePool,
 		outboundPool:  opt.outboundPool,
-		subscriptions: make(map[ConnectionID]*subscription),
-		topics:        make(map[TopicID]*subscription),
+		subscriptions: make(map[TopicID]*subscription),
 	}
 	return manager, nil
 }
@@ -190,8 +186,8 @@ func (m *Manager) Run(ctx context.Context) error {
 	return ctx.Err()
 }
 
-// Subscribe registers a topic subscription by subscribe id.
-func (m *Manager) Subscribe(id ConnectionID, topic TopicID) error {
+// Subscribe registers a topic subscription.
+func (m *Manager) Subscribe(topic TopicID) error {
 	if m == nil {
 		return ErrBadConfig
 	}
@@ -207,21 +203,15 @@ func (m *Manager) Subscribe(id ConnectionID, topic TopicID) error {
 		return ErrNotRunning
 	}
 
-	if _, ok := m.subscriptions[id]; ok {
-		m.mu.Unlock()
-		return ErrDuplicateSubscribeID
-	}
-
-	if _, ok := m.topics[topic]; ok {
+	if _, ok := m.subscriptions[topic]; ok {
 		m.mu.Unlock()
 		return ErrTopicAlreadySubscribed
 	}
 
 	s := m.pickSessionLocked()
-	s.subscriptions.Add(topic, id)
-	sub := &subscription{id: id, topic: topic, session: s}
-	m.subscriptions[id] = sub
-	m.topics[topic] = sub
+	s.subscriptions.Add(topic)
+	sub := &subscription{topic: topic, session: s}
+	m.subscriptions[topic] = sub
 	ctx := m.ctx
 	startNow := ctx != nil
 	m.mu.Unlock()
@@ -229,32 +219,31 @@ func (m *Manager) Subscribe(id ConnectionID, topic TopicID) error {
 	if startNow {
 		s.start(ctx, &m.wg)
 	}
-	return s.subscribe(topic, id)
+	return s.subscribe(topic)
 }
 
-// Unsubscribe removes a subscription by subscribe id.
-func (m *Manager) Unsubscribe(id ConnectionID) error {
+// Unsubscribe removes a subscription by topic id.
+func (m *Manager) Unsubscribe(topic TopicID) error {
 	if m == nil {
 		return ErrBadConfig
 	}
 	m.mu.Lock()
-	sub, ok := m.subscriptions[id]
+	sub, ok := m.subscriptions[topic]
 	if !ok {
 		m.mu.Unlock()
-		return ErrUnknownSubscribeID
+		return ErrUnknownTopic
 	}
-	delete(m.subscriptions, id)
-	delete(m.topics, sub.topic)
-	_, _ = sub.session.subscriptions.Remove(sub.topic)
+	delete(m.subscriptions, topic)
+	_ = sub.session.subscriptions.Remove(topic)
 	empty := sub.session.subscriptions.Count() == 0
 	if empty {
 		m.removeSessionLocked(sub.session)
 	}
 	m.mu.Unlock()
 
-	m.router.RemoveTopic(sub.topic)
+	m.router.RemoveTopic(topic)
 
-	if err := sub.session.unsubscribe(sub.topic, sub.id); err != nil {
+	if err := sub.session.unsubscribe(topic); err != nil {
 		return err
 	}
 	if empty {
@@ -264,53 +253,56 @@ func (m *Manager) Unsubscribe(id ConnectionID) error {
 }
 
 // AddConsumer registers a consumer for a subscription.
-func (m *Manager) AddConsumer(id ConnectionID, consumer *Consumer) error {
+func (m *Manager) AddConsumer(topic TopicID, consumer *Consumer) error {
 	if m == nil {
 		return ErrBadConfig
 	}
 	m.mu.Lock()
-	sub, ok := m.subscriptions[id]
+	sub, ok := m.subscriptions[topic]
 	m.mu.Unlock()
 	if !ok {
-		return ErrUnknownSubscribeID
+		return ErrUnknownTopic
 	}
 	m.router.AddConsumer(sub.topic, consumer)
 	return nil
 }
 
 // RemoveConsumer unregisters a consumer for a subscription.
-func (m *Manager) RemoveConsumer(id ConnectionID, consumer *Consumer) error {
+func (m *Manager) RemoveConsumer(topic TopicID, consumer *Consumer) error {
 	if m == nil {
 		return ErrBadConfig
 	}
 	m.mu.Lock()
-	sub, ok := m.subscriptions[id]
+	sub, ok := m.subscriptions[topic]
 	m.mu.Unlock()
 	if !ok {
-		return ErrUnknownSubscribeID
+		return ErrUnknownTopic
 	}
 	m.router.RemoveConsumer(sub.topic, consumer)
 	return nil
 }
 
 // Send enqueues an outbound message by copying payload.
-func (m *Manager) Send(id ConnectionID, msgType MessageType, payload []byte) error {
+func (m *Manager) Send(msgType MessageType, payload []byte) error {
 	if m == nil {
 		return ErrBadConfig
 	}
-	m.mu.Lock()
-	sub, ok := m.subscriptions[id]
-	m.mu.Unlock()
-	if !ok {
-		return ErrUnknownSubscribeID
+	sessions := m.collectSessions()
+	var firstErr error
+	for _, s := range sessions {
+		if !s.connected.Load() {
+			if firstErr == nil {
+				firstErr = ErrNotConnected
+			}
+			continue
+		}
+		if !s.writer.Send(msgType, payload) {
+			if firstErr == nil {
+				firstErr = ErrQueueFull
+			}
+		}
 	}
-	if !sub.session.connected.Load() {
-		return ErrNotConnected
-	}
-	if !sub.session.writer.Send(msgType, payload) {
-		return ErrQueueFull
-	}
-	return nil
+	return firstErr
 }
 
 // AcquireOutbound returns a pooled frame for zero-copy sending.
@@ -326,15 +318,15 @@ func (m *Manager) AcquireOutbound(msgType MessageType, size int) *outboundFrame 
 }
 
 // EnqueueOutbound enqueues a pooled outbound frame.
-func (m *Manager) EnqueueOutbound(id ConnectionID, frame *outboundFrame) error {
+func (m *Manager) EnqueueOutbound(topic TopicID, frame *outboundFrame) error {
 	if m == nil {
 		return ErrBadConfig
 	}
 	m.mu.Lock()
-	sub, ok := m.subscriptions[id]
+	sub, ok := m.subscriptions[topic]
 	m.mu.Unlock()
 	if !ok {
-		return ErrUnknownSubscribeID
+		return ErrUnknownTopic
 	}
 	if !sub.session.connected.Load() {
 		return ErrNotConnected
@@ -346,6 +338,13 @@ func (m *Manager) EnqueueOutbound(id ConnectionID, frame *outboundFrame) error {
 		return ErrQueueFull
 	}
 	return nil
+}
+
+func (m *Manager) collectSessions() []*session {
+	m.mu.Lock()
+	sessions := append([]*session(nil), m.sessions...)
+	m.mu.Unlock()
+	return sessions
 }
 
 func (m *Manager) pickSessionLocked() *session {

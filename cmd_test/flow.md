@@ -108,12 +108,10 @@ flowchart TD
     D1 -->|"no"| E1["getOrCreateGroup(ctx, platform, apiKey)"]
     E1 -->|"error"| E1E["return error"]
     E1 --> F1{"apiKey empty?"}
-    F1 -->|"no"| G1["ensureAuth(ctx, m, apiKey)"]
-    G1 -->|"error"| G1E["return error"]
-    G1 --> H1["ensureTopic(m, topic, arg)"]
     F1 -->|"yes"| H1
+    F1 -->|"no"| H1
     H1 -->|"error"| H1E["return error"]
-    H1 --> I1["manager.AddConsumer(subID, consumer)"]
+    H1 --> I1["manager.AddConsumer(topicID, consumer)"]
     I1 -->|"error"| I1E["return error"]
     I1 --> J1["lock group; state.refCount++"]
     J1 --> K1["return nil"]
@@ -141,18 +139,18 @@ flowchart TD
     E2 -->|"nil"| E2E["return ErrUnknownTopic"]
     E2 --> F2["lookup topic state by key"]
     F2 -->|"nil"| F2E["return ErrUnknownTopic"]
-    F2 --> G2["manager.RemoveConsumer(subID, consumer)"]
+    F2 --> G2["manager.RemoveConsumer(topicID, consumer)"]
     G2 -->|"error"| G2E["return error"]
     G2 --> H2["lock group; state.refCount--"]
     H2 --> I2{"refCount <= 0?"}
     I2 -->|"no"| J2["return nil"]
     I2 -->|"yes"| K2["delete state from maps"]
     K2 --> L2["codec.Unregister(topicID)"]
-    L2 --> M2["manager.Unsubscribe(subID)"]
+    L2 --> M2["manager.Unsubscribe(topicID)"]
     M2 --> J2
 ```
 
-MarketData (internal/ingest/market_data.go) - getOrCreateGroup + ensureAuth
+MarketData (internal/ingest/market_data.go) - getOrCreateGroup
 ```mermaid
 
 ---
@@ -175,20 +173,9 @@ flowchart TD
     F3 --> G3["group.start(ctx)"]
     G3 --> D3R
 
-    H3["ensureAuth(ctx, m, apiKey)"]
-    H3 --> I3{"apiKey empty?"}
-    I3 -->|"yes"| I3R["return nil"]
-    I3 -->|"no"| J3{"authInit CAS false?"}
-    J3 -->|"yes"| J3R["return nil"]
-    J3 -->|"no"| K3["set authRequired + authReady=false"]
-    K3 --> L3["RegisterAuth(topicID, apiKey, reqID)"]
-    L3 -->|"error"| L3E["reset flags; return error"]
-    L3 --> M3["manager.Subscribe(authSubID, authTopicID)"]
-    M3 -->|"error"| M3E["ClearAuth + reset flags; return error"]
-    M3 --> N3["manager.AddConsumer(authSubID, consumer)"]
-    N3 -->|"error"| N3E["ClearAuth + Unsubscribe + reset flags; return error"]
-    N3 --> O3["go watchAuth(ctx, consumer)"]
-    O3 --> O3R["return nil"]
+    H3["if apiKey not empty: RegisterAuth(reqID, apiKey)"]
+    H3 -->|"error"| H3E["return error"]
+    H3 --> H3R["return group"]
 ```
 
 Binance payload (internal/ingest/binance/payload.go) - Decode dispatch
