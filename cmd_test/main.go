@@ -66,10 +66,8 @@ func run() error {
 		return err
 	}
 
-	argPayload, err := buildArg(topic, *baseFlag, *quoteFlag, *apiKeyFlag)
-	if err != nil {
-		return err
-	}
+	symbol := adapter.NewSymbol(*baseFlag, *quoteFlag)
+	apiKey := []byte(*apiKeyFlag)
 
 	socketPath := strings.TrimSpace(*udsPathFlag)
 	if socketPath == "" {
@@ -100,7 +98,8 @@ func run() error {
 	req := adapter.MarketDataRequest{
 		Platform: platform,
 		Topic:    topic,
-		Arg:      argPayload,
+		Symbol:   symbol,
+		APIKey:   apiKey,
 	}
 	payload, err := adapter.EncodeMarketDataRequest(nil, req)
 	if err != nil {
@@ -276,21 +275,4 @@ func hashBytes(data []byte) uint64 {
 		hash *= prime64
 	}
 	return hash
-}
-
-func buildArg(topic enum.Topic, base, quote, apiKey string) ([]byte, error) {
-	symbol := adapter.NewSymbol(base, quote)
-	switch topic {
-	case enum.TopicDepth:
-		return adapter.EncodeMarketDataArgDepth(nil, adapter.MarketDataArgDepth{
-			Symbol: symbol,
-		})
-	case enum.TopicOrder:
-		return adapter.EncodeMarketDataArgOrder(nil, adapter.MarketDataArgOrder{
-			Symbol: symbol,
-			APIKey: []byte(apiKey),
-		})
-	default:
-		return nil, fmt.Errorf("unknown topic: %d", topic)
-	}
 }

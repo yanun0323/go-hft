@@ -104,19 +104,11 @@ func (c *Codec) Register(topicID websocket.TopicID, req adapter.MarketDataReques
 func streamForRequest(req adapter.MarketDataRequest) ([]byte, error) {
 	switch req.Topic {
 	case enum.TopicDepth:
-		arg, err := adapter.DecodeMarketDataArgDepth(req.Arg)
-		if err != nil {
-			return nil, err
-		}
-		market := symbolToMarket(arg.Symbol)
+		market := symbolToMarket(req.Symbol)
 		stream := strings.ToLower(market) + "@depth@100ms"
 		return []byte(stream), nil
 	case enum.TopicOrder:
-		arg, err := adapter.DecodeMarketDataArgOrder(req.Arg)
-		if err != nil {
-			return nil, err
-		}
-		market := symbolToMarket(arg.Symbol)
+		market := symbolToMarket(req.Symbol)
 		stream := strings.ToLower(market)
 		return []byte(stream), nil
 	default:

@@ -333,18 +333,10 @@ func bytesEqual(a []byte, b []byte) bool {
 func marketFromRequest(req adapter.MarketDataRequest) (topicKind, []byte, error) {
 	switch req.Topic {
 	case enum.TopicDepth:
-		arg, err := adapter.DecodeMarketDataArgDepth(req.Arg)
-		if err != nil {
-			return topicKindUnknown, nil, err
-		}
-		market := symbolToMarket(arg.Symbol)
+		market := symbolToMarket(req.Symbol)
 		return topicKindDepth, []byte(market), nil
 	case enum.TopicOrder:
-		arg, err := adapter.DecodeMarketDataArgOrder(req.Arg)
-		if err != nil {
-			return topicKindUnknown, nil, err
-		}
-		market := symbolToMarket(arg.Symbol)
+		market := symbolToMarket(req.Symbol)
 		return topicKindOrder, []byte(market), nil
 	default:
 		return topicKindUnknown, nil, errEmptyTopic

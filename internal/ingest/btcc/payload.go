@@ -32,14 +32,13 @@ var (
 )
 
 // DecodeMarketDataPayload converts a websocket payload into an encoded market data payload.
-func DecodeMarketDataPayload(topic enum.Topic, arg []byte, payload []byte) ([]byte, error) {
+func DecodeMarketDataPayload(topic enum.Topic, symbol adapter.Symbol, payload []byte) ([]byte, error) {
 	if !topic.IsAvailable() {
 		return nil, ErrInvalidRequest
 	}
 	if len(payload) == 0 {
 		return nil, ErrInvalidPayload
 	}
-	symbol := decodeSymbol(arg)
 	return decodeBtccPayload(topic, symbol, payload)
 }
 
@@ -174,11 +173,6 @@ func decodeBtccOrder(payload []byte, symbol adapter.Symbol) (adapter.Order, erro
 		return order, ErrInvalidPayload
 	}
 	return order, nil
-}
-
-func decodeSymbol(arg []byte) adapter.Symbol {
-	// FIXME: Fix me
-	return adapter.Symbol(arg[:adapter.SymbolCap])
 }
 
 func scanDepthSide(payload []byte, key []byte, rows []adapter.DepthRow) (int, bool) {

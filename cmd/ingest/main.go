@@ -147,11 +147,11 @@ func handleConn(ctx context.Context, conn *net.UnixConn, md *ingest.MarketData, 
 	)
 	defer func() {
 		for _, sub := range subscriptions {
-			group := groups[sub.apiKey]
+			group := groups[string(sub.apiKey)]
 			if group == nil {
 				continue
 			}
-			_ = md.Unsubscribe(sub.platform, sub.apiKey, sub.topic, []byte(sub.arg), group.consumer)
+			_ = md.Unsubscribe(sub.platform, sub.apiKey, sub.topic, sub.symbol, group.consumer)
 		}
 		for _, group := range groups {
 			if group != nil && group.consumer != nil {
@@ -174,13 +174,9 @@ func handleConn(ctx context.Context, conn *net.UnixConn, md *ingest.MarketData, 
 			log.Printf("platform mismatch: got %v want %v", req.Platform, serverPlatform)
 			return
 		}
-		apiKey, err := apiKeyFromRequest(req)
-		if err != nil {
-			log.Printf("request arg error: %v", err)
-			return
-		}
-		argStr := string(req.Arg)
-		subKey := subscriptionKey(apiKey, req.Topic, argStr)
+		apiKey := req.APIKey
+		symbolStr := req.Symbol.String()
+		subKey := subscriptionKey(apiKey, req.Topic, symbolStr)
 		if existing, exists := subscriptions[subKey]; exists {
 			if existing.topic != req.Topic {
 				log.Printf("topic mismatch: %v", req.Topic)
@@ -189,7 +185,7 @@ func handleConn(ctx context.Context, conn *net.UnixConn, md *ingest.MarketData, 
 			continue
 		}
 
-		group := groups[apiKey]
+		group := groups[string(apiKey)]
 		if group == nil {
 			consumer := websocket.NewConsumer(4096, websocket.OverflowDropOldest) // TODO: 根據 topic 來決定 policy
 			group = &connGroup{
@@ -197,20 +193,21 @@ func handleConn(ctx context.Context, conn *net.UnixConn, md *ingest.MarketData, 
 				apiKey:   apiKey,
 				consumer: consumer,
 			}
-			groups[apiKey] = group
+			groups[string(apiKey)] = group
 			go runConsumer(ctx, conn, md, group, &writeMu)
 		}
 
-		if err := md.Subscribe(ctx, req.Platform, apiKey, req.Topic, req.Arg, group.consumer); err != nil {
+		if err := md.Subscribe(ctx, req.Platform, req.APIKey, req.Topic, req.Symbol, group.consumer); err != nil {
 			log.Printf("subscribe error: %v", err)
 			return
 		}
-		
+
 		subscriptions[subKey] = connSubscription{
 			platform: req.Platform,
-			apiKey:   apiKey,
+			apiKey:   req.APIKey,
 			topic:    req.Topic,
-			arg:      argStr,
+			symbol:   req.Symbol,
+			symbolStr: symbolStr,
 		}
 	}
 }
@@ -226,9 +223,9 @@ func readRequest(conn *net.UnixConn, buf []byte) (adapter.MarketDataRequest, []b
 		return req, buf, err
 	}
 
-	argLen := int(binary.BigEndian.Uint16(header[2:4]))
-	total := reqHeaderSize + argLen
-	if total < reqHeaderSize {
+	apiKeyLen := int(binary.BigEndian.Uint16(header[2:4]))
+	total := reqHeaderSize + adapter.SymbolCap + apiKeyLen
+	if total < reqHeaderSize+adapter.SymbolCap {
 		return req, buf, exception.ErrInvalidMarketDataRequest
 	}
 
@@ -246,23 +243,6 @@ func readRequest(conn *net.UnixConn, buf []byte) (adapter.MarketDataRequest, []b
 	return parsed, buf, err
 }
 
-func apiKeyFromRequest(req adapter.MarketDataRequest) (string, error) {
-	switch req.Topic {
-	case enum.TopicDepth:
-		if _, err := adapter.DecodeMarketDataArgDepth(req.Arg); err != nil {
-			return "", err
-		}
-		return "", nil
-	case enum.TopicOrder:
-		arg, err := adapter.DecodeMarketDataArgOrder(req.Arg)
-		if err != nil {
-			return "", err
-		}
-		return string(arg.APIKey), nil
-	default:
-		return "", exception.ErrInvalidMarketDataRequest
-	}
-}
 
 func writeFull(conn *net.UnixConn, buf []byte) error {
 	for len(buf) > 0 {
@@ -277,19 +257,20 @@ func writeFull(conn *net.UnixConn, buf []byte) error {
 
 type connGroup struct {
 	platform enum.Platform
-	apiKey   string
+	apiKey   []byte
 	consumer *websocket.Consumer
 }
 
 type connSubscription struct {
 	platform enum.Platform
-	apiKey   string
+	apiKey   []byte
 	topic    enum.Topic
-	arg      string
+	symbol   adapter.Symbol
+	symbolStr string
 }
 
-func subscriptionKey(apiKey string, topic enum.Topic, arg string) string {
-	return apiKey + "|" + strconv.Itoa(int(topic)) + "|" + arg
+func subscriptionKey(apiKey []byte, topic enum.Topic, symbol string) string {
+	return string(apiKey) + "|" + strconv.Itoa(int(topic)) + "|" + symbol
 }
 
 func runConsumer(ctx context.Context, conn *net.UnixConn, md *ingest.MarketData, group *connGroup, writeMu *sync.Mutex) {
@@ -302,7 +283,7 @@ func runConsumer(ctx context.Context, conn *net.UnixConn, md *ingest.MarketData,
 		if !ok {
 			return
 		}
-		topic, arg, _, ok := md.Resolve(group.platform, group.apiKey, frame.Topic)
+		topic, symbol, _, ok := md.Resolve(group.platform, group.apiKey, frame.Topic)
 		if !ok {
 			frame.Release()
 			continue
@@ -311,7 +292,7 @@ func runConsumer(ctx context.Context, conn *net.UnixConn, md *ingest.MarketData,
 		var err error
 		switch group.platform {
 		case enum.PlatformBinance:
-			payload, err = binance.DecodeMarketDataPayload(topic, arg, frame.Buf)
+			payload, err = binance.DecodeMarketDataPayload(topic, symbol, frame.Buf)
 		default:
 			frame.Release()
 			continue
@@ -324,7 +305,7 @@ func runConsumer(ctx context.Context, conn *net.UnixConn, md *ingest.MarketData,
 		if writeMu != nil {
 			writeMu.Lock()
 		}
-		err = writeResponse(conn, group.platform, topic, arg, payload)
+		err = writeResponse(conn, group.platform, topic, symbol[:], payload)
 		if writeMu != nil {
 			writeMu.Unlock()
 		}

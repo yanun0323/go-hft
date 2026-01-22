@@ -49,16 +49,12 @@ var (
 const maxInt64 = int64(^uint64(0) >> 1)
 
 // DecodeMarketDataPayload converts a websocket payload into an encoded market data payload.
-func DecodeMarketDataPayload(topic enum.Topic, arg []byte, payload []byte) ([]byte, error) {
+func DecodeMarketDataPayload(topic enum.Topic, symbol adapter.Symbol, payload []byte) ([]byte, error) {
 	if !topic.IsAvailable() {
 		return nil, ErrInvalidRequest
 	}
 	if len(payload) == 0 {
 		return nil, ErrInvalidPayload
-	}
-	symbol, err := decodeSymbol(arg)
-	if err != nil {
-		return nil, err
 	}
 	return decodeBinancePayload(topic, symbol, payload)
 }
@@ -410,11 +406,6 @@ func parseDecimal(src []byte) (adapter.Decimal, error) {
 		value = -value
 	}
 	return adapter.Decimal{Integer: value, Scale: scale}, nil
-}
-
-func decodeSymbol(arg []byte) (adapter.Symbol, error) {
-	// FIXME: Fix me
-	return adapter.Symbol(arg[:adapter.SymbolCap]), nil
 }
 
 func decimalSub(a adapter.Decimal, b adapter.Decimal) adapter.Decimal {

@@ -1,6 +1,9 @@
 package adapter
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestSymbol(t *testing.T) {
 	type SymbolContainer struct {
@@ -20,17 +23,17 @@ func TestSymbol(t *testing.T) {
 		{
 			"ETH USDT -Hello",
 			SymbolContainer{"ETH", "USDT", "-Hello"},
-			SymbolContainer{"ETH", "USDT", "-Hello"},
+			SymbolContainer{"ETH", "USDT", ""},
 		},
 		{
 			"max cap",
-			SymbolContainer{"ABCDEF", "UVWXYZ", "GHIJKLMNOPQR"},
-			SymbolContainer{"ABCDEF", "UVWXYZ", "GHIJKLMNOPQR"},
+			SymbolContainer{strings.Repeat("A", baseCap), strings.Repeat("B", quoteCap), strings.Repeat("C", memoCap)},
+			SymbolContainer{strings.Repeat("A", baseCap), strings.Repeat("B", quoteCap), strings.Repeat("C", memoCap)},
 		},
 		{
 			"overflow",
-			SymbolContainer{"ABCDEF123", "UVWXYZ456", "GHIJKLMNOPQR789"},
-			SymbolContainer{"ABCDEF", "UVWXYZ", "GHIJKLMNOPQR"},
+			SymbolContainer{strings.Repeat("A", baseCap) + "123", strings.Repeat("B", quoteCap) + "456", strings.Repeat("C", memoCap) + "789"},
+			SymbolContainer{strings.Repeat("A", baseCap), strings.Repeat("B", quoteCap), strings.Repeat("C", memoCap)},
 		},
 	}
 

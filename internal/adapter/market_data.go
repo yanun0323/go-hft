@@ -12,45 +12,38 @@ const (
 )
 
 // MarketDataRequest is the minimal UDS request format.
-// Arg slices alias the input buffer; copy if you need to retain them.
 type MarketDataRequest struct {
 	Platform enum.Platform
 	Topic    enum.Topic
-	Arg      []byte
-}
-
-type MarketDataArgDepth struct {
-	Symbol Symbol
-}
-
-type MarketDataArgOrder struct {
-	Symbol Symbol
-	APIKey []byte
+	Symbol   Symbol
+	APIKey   []byte
 }
 
 // DecodeMarketDataRequest parses a request from a byte buffer.
 // Format:
 // [0] platform (uint8)
 // [1] topic (uint8)
-// [2:4] argLen (uint16, big endian)
-// [4:] arg
+// [2:4] apiKeyLen (uint16, big endian)
+// [4:4+SymbolCap] symbol
+// [4+SymbolCap:] apiKey
 func DecodeMarketDataRequest(src []byte) (MarketDataRequest, int, error) {
 	var req MarketDataRequest
-	if len(src) < marketDataReqHeaderSize {
+	if len(src) < marketDataReqHeaderSize+SymbolCap {
 		return req, 0, exception.ErrInvalidMarketDataRequest
 	}
 	req.Platform = enum.Platform(src[0])
 	req.Topic = enum.Topic(src[1])
-	argLen := int(binary.BigEndian.Uint16(src[2:4]))
-	total := marketDataReqHeaderSize + argLen
-	if argLen < 0 || total > len(src) {
+	apiKeyLen := int(binary.BigEndian.Uint16(src[2:4]))
+	total := marketDataReqHeaderSize + SymbolCap + apiKeyLen
+	if apiKeyLen < 0 || total > len(src) {
 		return req, 0, exception.ErrInvalidMarketDataRequest
 	}
 	if !req.Platform.IsAvailable() || !req.Topic.IsAvailable() {
 		return req, 0, exception.ErrInvalidMarketDataRequest
 	}
-	if argLen > 0 {
-		req.Arg = src[marketDataReqHeaderSize : marketDataReqHeaderSize+argLen]
+	copy(req.Symbol[:], src[marketDataReqHeaderSize:marketDataReqHeaderSize+SymbolCap])
+	if apiKeyLen > 0 {
+		req.APIKey = src[marketDataReqHeaderSize+SymbolCap : total]
 	}
 	return req, total, nil
 }
@@ -61,11 +54,11 @@ func EncodeMarketDataRequest(dst []byte, req MarketDataRequest) ([]byte, error) 
 		return nil, exception.ErrInvalidMarketDataRequest
 	}
 
-	argLen := len(req.Arg)
-	if argLen > maxUint16 {
+	apiKeyLen := len(req.APIKey)
+	if apiKeyLen > maxUint16 {
 		return nil, exception.ErrInvalidMarketDataRequest
 	}
-	total := marketDataReqHeaderSize + argLen
+	total := marketDataReqHeaderSize + SymbolCap + apiKeyLen
 	if cap(dst) < total {
 		dst = make([]byte, total)
 	} else {
@@ -73,63 +66,8 @@ func EncodeMarketDataRequest(dst []byte, req MarketDataRequest) ([]byte, error) 
 	}
 	dst[0] = byte(req.Platform)
 	dst[1] = byte(req.Topic)
-	binary.BigEndian.PutUint16(dst[2:4], uint16(argLen))
-	copy(dst[marketDataReqHeaderSize:], req.Arg)
-	return dst, nil
-}
-
-// DecodeMarketDataArgDepth parses a depth arg payload.
-// Format: [0:32] symbol + interval bytes.
-func DecodeMarketDataArgDepth(src []byte) (MarketDataArgDepth, error) {
-	var arg MarketDataArgDepth
-	if len(src) < 2 {
-		return arg, exception.ErrInvalidMarketDataRequest
-	}
-	arg.Symbol = Symbol(src[0:SymbolCap])
-	return arg, nil
-}
-
-// EncodeMarketDataArgDepth serializes a depth arg payload.
-func EncodeMarketDataArgDepth(dst []byte, arg MarketDataArgDepth) ([]byte, error) {
-	total := SymbolCap
-	if total > maxUint16 {
-		return nil, exception.ErrInvalidMarketDataRequest
-	}
-	if cap(dst) < total {
-		dst = make([]byte, total)
-	} else {
-		dst = dst[:total]
-	}
-	copy(dst[0:SymbolCap], arg.Symbol[:])
-	return dst, nil
-}
-
-// DecodeMarketDataArgOrder parses an order arg payload.
-// Format: [0:2] symbol (uint16, big endian) + apiKey bytes.
-func DecodeMarketDataArgOrder(src []byte) (MarketDataArgOrder, error) {
-	var arg MarketDataArgOrder
-	if len(src) < 2 {
-		return arg, exception.ErrInvalidMarketDataRequest
-	}
-	arg.Symbol = Symbol(src[0:SymbolCap])
-	if len(src) > 2 {
-		arg.APIKey = src[SymbolCap:]
-	}
-	return arg, nil
-}
-
-// EncodeMarketDataArgOrder serializes an order arg payload.
-func EncodeMarketDataArgOrder(dst []byte, arg MarketDataArgOrder) ([]byte, error) {
-	total := SymbolCap + len(arg.APIKey)
-	if total > maxUint16 {
-		return nil, exception.ErrInvalidMarketDataRequest
-	}
-	if cap(dst) < total {
-		dst = make([]byte, total)
-	} else {
-		dst = dst[:total]
-	}
-	copy(dst[0:SymbolCap], arg.Symbol[:])
-	copy(dst[SymbolCap:], arg.APIKey)
+	binary.BigEndian.PutUint16(dst[2:4], uint16(apiKeyLen))
+	copy(dst[marketDataReqHeaderSize:marketDataReqHeaderSize+SymbolCap], req.Symbol[:])
+	copy(dst[marketDataReqHeaderSize+SymbolCap:], req.APIKey)
 	return dst, nil
 }
