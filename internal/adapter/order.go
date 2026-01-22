@@ -2,13 +2,12 @@ package adapter
 
 import "main/internal/adapter/enum"
 
-
 // use `make codable-gen` to generate code
 //
 //go:generate codable
 type Order struct {
 	ID           int64
-	SymbolID     Symbol
+	Symbol       Symbol
 	EventTsNano  int64
 	RecvTsNano   int64
 	Platform     enum.Platform

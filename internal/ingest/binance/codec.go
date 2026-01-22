@@ -2,9 +2,12 @@ package binance
 
 import (
 	"errors"
+	"main/internal/adapter"
+	"main/internal/adapter/enum"
 	"main/pkg/exception"
 	"main/pkg/scanner"
 	"main/pkg/websocket"
+	"strings"
 	"sync"
 )
 
@@ -75,14 +78,17 @@ func (c *Codec) EncodeAuth(dst []byte, apiKey string, reqID uint64) (websocket.M
 }
 
 // Register adds a topic mapping for a stream name.
-func (c *Codec) Register(topicID websocket.TopicID, topic string) error {
+func (c *Codec) Register(topicID websocket.TopicID, req adapter.MarketDataRequest) error {
 	if c == nil {
 		return errEmptyTopic
 	}
-	if topic == "" {
+	if !req.Topic.IsAvailable() {
 		return errEmptyTopic
 	}
-	stream := []byte(topic)
+	stream, err := streamForRequest(req)
+	if err != nil {
+		return err
+	}
 	symbol := parseSymbolUpper(stream)
 
 	c.mu.Lock()
@@ -93,6 +99,34 @@ func (c *Codec) Register(topicID websocket.TopicID, topic string) error {
 	}
 	c.mu.Unlock()
 	return nil
+}
+
+func streamForRequest(req adapter.MarketDataRequest) ([]byte, error) {
+	switch req.Topic {
+	case enum.TopicDepth:
+		arg, err := adapter.DecodeMarketDataArgDepth(req.Arg)
+		if err != nil {
+			return nil, err
+		}
+		market := symbolToMarket(arg.Symbol)
+		stream := strings.ToLower(market) + "@depth@100ms"
+		return []byte(stream), nil
+	case enum.TopicOrder:
+		arg, err := adapter.DecodeMarketDataArgOrder(req.Arg)
+		if err != nil {
+			return nil, err
+		}
+		market := symbolToMarket(arg.Symbol)
+		stream := strings.ToLower(market)
+		return []byte(stream), nil
+	default:
+		return nil, errEmptyTopic
+	}
+}
+
+func symbolToMarket(symbol adapter.Symbol) string {
+	// TODO: map symbol to market string (e.g. BTCUSDT).
+	return symbol.String()
 }
 
 // Unregister removes a topic mapping.

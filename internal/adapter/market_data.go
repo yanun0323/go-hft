@@ -79,19 +79,19 @@ func EncodeMarketDataRequest(dst []byte, req MarketDataRequest) ([]byte, error) 
 }
 
 // DecodeMarketDataArgDepth parses a depth arg payload.
-// Format: [0:2] symbol (uint16, big endian) + interval bytes.
+// Format: [0:32] symbol + interval bytes.
 func DecodeMarketDataArgDepth(src []byte) (MarketDataArgDepth, error) {
 	var arg MarketDataArgDepth
 	if len(src) < 2 {
 		return arg, exception.ErrInvalidMarketDataRequest
 	}
-	arg.Symbol = Symbol(binary.BigEndian.Uint16(src[0:2]))
+	arg.Symbol = Symbol(src[0:SymbolCap])
 	return arg, nil
 }
 
 // EncodeMarketDataArgDepth serializes a depth arg payload.
 func EncodeMarketDataArgDepth(dst []byte, arg MarketDataArgDepth) ([]byte, error) {
-	total := 2
+	total := SymbolCap
 	if total > maxUint16 {
 		return nil, exception.ErrInvalidMarketDataRequest
 	}
@@ -100,7 +100,7 @@ func EncodeMarketDataArgDepth(dst []byte, arg MarketDataArgDepth) ([]byte, error
 	} else {
 		dst = dst[:total]
 	}
-	binary.BigEndian.PutUint16(dst[0:2], uint16(arg.Symbol))
+	copy(dst[0:SymbolCap], arg.Symbol[:])
 	return dst, nil
 }
 
@@ -111,16 +111,16 @@ func DecodeMarketDataArgOrder(src []byte) (MarketDataArgOrder, error) {
 	if len(src) < 2 {
 		return arg, exception.ErrInvalidMarketDataRequest
 	}
-	arg.Symbol = Symbol(binary.BigEndian.Uint16(src[0:2]))
+	arg.Symbol = Symbol(src[0:SymbolCap])
 	if len(src) > 2 {
-		arg.APIKey = src[2:]
+		arg.APIKey = src[SymbolCap:]
 	}
 	return arg, nil
 }
 
 // EncodeMarketDataArgOrder serializes an order arg payload.
 func EncodeMarketDataArgOrder(dst []byte, arg MarketDataArgOrder) ([]byte, error) {
-	total := 2 + len(arg.APIKey)
+	total := SymbolCap + len(arg.APIKey)
 	if total > maxUint16 {
 		return nil, exception.ErrInvalidMarketDataRequest
 	}
@@ -129,7 +129,7 @@ func EncodeMarketDataArgOrder(dst []byte, arg MarketDataArgOrder) ([]byte, error
 	} else {
 		dst = dst[:total]
 	}
-	binary.BigEndian.PutUint16(dst[0:2], uint16(arg.Symbol))
-	copy(dst[2:], arg.APIKey)
+	copy(dst[0:SymbolCap], arg.Symbol[:])
+	copy(dst[SymbolCap:], arg.APIKey)
 	return dst, nil
 }

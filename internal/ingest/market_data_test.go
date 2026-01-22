@@ -36,7 +36,7 @@ func TestMarketDataRequestEncodeDecodeRoundTrip(t *testing.T) {
 
 func TestMarketDataArgDepthEncodeDecodeRoundTrip(t *testing.T) {
 	orig := adapter.MarketDataArgDepth{
-		Symbol: adapter.Symbol(42),
+		Symbol: adapter.NewSymbol("BTC", "USDT"),
 	}
 
 	encoded, err := adapter.EncodeMarketDataArgDepth(nil, orig)
@@ -54,7 +54,7 @@ func TestMarketDataArgDepthEncodeDecodeRoundTrip(t *testing.T) {
 
 func TestMarketDataArgOrderEncodeDecodeRoundTrip(t *testing.T) {
 	orig := adapter.MarketDataArgOrder{
-		Symbol: adapter.Symbol(7),
+		Symbol: adapter.NewSymbol("BTC", "USDT"),
 		APIKey: []byte("key-123"),
 	}
 

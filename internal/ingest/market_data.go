@@ -2,8 +2,10 @@ package ingest
 
 import (
 	"context"
+	"main/internal/adapter"
 	"main/internal/adapter/enum"
 	"main/internal/ingest/binance"
+	"main/internal/ingest/btcc"
 	"main/pkg/exception"
 	"main/pkg/websocket"
 	"sync"
@@ -45,6 +47,7 @@ type wsGroup struct {
 	running    atomic.Bool
 	apiKey     string
 	authReqID  uint64
+	platform   enum.Platform
 }
 
 type topicState struct {
@@ -65,7 +68,7 @@ type platformCodec interface {
 	websocket.TopicDecoder
 	websocket.ControlEncoder
 
-	Register(topicID websocket.TopicID, topic string) error
+	Register(topicID websocket.TopicID, req adapter.MarketDataRequest) error
 	Unregister(topicID websocket.TopicID)
 	RegisterAuth(topicID websocket.TopicID, apiKey string, reqID uint64) error
 	EncodeAuth(dst []byte, apiKey string, reqID uint64) (websocket.MessageType, []byte, error)
@@ -75,6 +78,10 @@ const (
 	binanceHost = "stream.binance.com"
 	binancePort = "9443"
 	binancePath = "/ws"
+
+	btccHost = "spotprice2.btcccdn.com"
+	btccPort = "443"
+	btccPath = "/ws"
 )
 
 // KindFromTopic maps a topic enum to the market data kind.
@@ -241,8 +248,44 @@ func newGroup(platform enum.Platform, apiKey string) (*wsGroup, error) {
 			topics:     make(map[topicKey]*topicState),
 			topicsByID: make(map[websocket.TopicID]*topicState),
 			apiKey:     apiKey,
+			platform:   platform,
 		}
 		dialer := websocket.NewDialer(context.Background(), binanceHost, binancePort, binancePath)
+		manager, err := websocket.New(dialer, codec, codec, websocket.Option{
+			FanOut: websocket.FanOutShared,
+			OnConnect: func(ctx context.Context, w websocket.Writer) error {
+				group.mu.RLock()
+				groupAPIKey := group.apiKey
+				reqID := group.authReqID
+				group.mu.RUnlock()
+				if groupAPIKey == "" {
+					return nil
+				}
+				msgType, payload, err := codec.EncodeAuth(nil, groupAPIKey, reqID)
+				if err != nil {
+					return err
+				}
+				if !w.Send(msgType, payload) {
+					return websocket.ErrQueueFull
+				}
+				return nil
+			},
+		})
+		if err != nil {
+			return nil, err
+		}
+		group.manager = manager
+		return group, nil
+	case enum.PlatformBTCC:
+		codec := btcc.NewCodec()
+		group := &wsGroup{
+			codec:      codec,
+			topics:     make(map[topicKey]*topicState),
+			topicsByID: make(map[websocket.TopicID]*topicState),
+			apiKey:     apiKey,
+			platform:   platform,
+		}
+		dialer := websocket.NewDialer(context.Background(), btccHost, btccPort, btccPath)
 		manager, err := websocket.New(dialer, codec, codec, websocket.Option{
 			FanOut: websocket.FanOutShared,
 			OnConnect: func(ctx context.Context, w websocket.Writer) error {
@@ -294,6 +337,7 @@ func (g *wsGroup) ensureTopic(m *MarketData, topic enum.Topic, arg []byte) (*top
 	if !ok {
 		return nil, exception.ErrInvalidMarketDataRequest
 	}
+
 	argStr := string(arg)
 	key := topicKey{topic: topic, arg: argStr}
 
@@ -302,9 +346,14 @@ func (g *wsGroup) ensureTopic(m *MarketData, topic enum.Topic, arg []byte) (*top
 	}
 
 	topicID := m.nextTopicID()
-	if err := g.codec.Register(topicID, argStr); err != nil {
+	if err := g.codec.Register(topicID, adapter.MarketDataRequest{
+		Platform: g.platform,
+		Topic:    topic,
+		Arg:      arg,
+	}); err != nil {
 		return nil, err
 	}
+
 	if err := g.manager.Subscribe(topicID); err != nil {
 		g.codec.Unregister(topicID)
 		return nil, err
@@ -317,7 +366,9 @@ func (g *wsGroup) ensureTopic(m *MarketData, topic enum.Topic, arg []byte) (*top
 		topicID:  topicID,
 		kind:     kind,
 	}
+
 	g.topics[key] = state
 	g.topicsByID[topicID] = state
+
 	return state, nil
 }

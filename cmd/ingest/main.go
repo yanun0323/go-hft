@@ -205,6 +205,7 @@ func handleConn(ctx context.Context, conn *net.UnixConn, md *ingest.MarketData, 
 			log.Printf("subscribe error: %v", err)
 			return
 		}
+		
 		subscriptions[subKey] = connSubscription{
 			platform: req.Platform,
 			apiKey:   apiKey,

@@ -39,9 +39,8 @@ func run() error {
 	platformFlag := flag.String("platform", "", "platform name for shard socket and request")
 	socketTopicFlag := flag.String("socket-topic", "", "socket shard id used in filename")
 	reqTopicFlag := flag.String("req-topic", "depth", "request topic: depth|order|<number>")
-	argFlag := flag.String("arg", "", "topic arg payload (raw, optional)")
-	symbolIDFlag := flag.Int("symbol-id", -1, "symbol id for arg encoding (required when -arg is empty)")
-	intervalFlag := flag.String("interval", "", "depth interval (required for depth when -arg is empty)")
+	baseFlag := flag.String("base", "BTC", "symbol base for arg encoding (required when -arg is empty)")
+	quoteFlag := flag.String("quote", "USDT", "symbol quote for arg encoding (required when -arg is empty)")
 	apiKeyFlag := flag.String("api-key", "", "api key (optional)")
 	udsDirFlag := flag.String("uds-dir", defaultUDSDir, "UDS socket directory")
 	udsPathFlag := flag.String("uds-path", "", "UDS socket path (optional)")
@@ -51,19 +50,23 @@ func run() error {
 	if platformName == "" {
 		return errors.New("missing platform; use -platform")
 	}
+
 	socketTopic := strings.TrimSpace(*socketTopicFlag)
 	if socketTopic == "" {
 		return errors.New("missing socket topic; use -socket-topic")
 	}
+
 	platform, err := parsePlatform(platformName)
 	if err != nil {
 		return err
 	}
+
 	topic, err := parseTopic(*reqTopicFlag)
 	if err != nil {
 		return err
 	}
-	argPayload, err := buildArg(topic, strings.TrimSpace(*argFlag), *symbolIDFlag, strings.TrimSpace(*intervalFlag), *apiKeyFlag)
+
+	argPayload, err := buildArg(topic, *baseFlag, *quoteFlag, *apiKeyFlag)
 	if err != nil {
 		return err
 	}
@@ -275,19 +278,10 @@ func hashBytes(data []byte) uint64 {
 	return hash
 }
 
-func buildArg(topic enum.Topic, argText string, symbolID int, interval string, apiKey string) ([]byte, error) {
-	if argText != "" {
-		return []byte(argText), nil
-	}
-	if symbolID < 0 || symbolID > maxUint16 {
-		return nil, errors.New("missing arg; use -arg or -symbol-id")
-	}
-	symbol := adapter.Symbol(symbolID)
+func buildArg(topic enum.Topic, base, quote, apiKey string) ([]byte, error) {
+	symbol := adapter.NewSymbol(base, quote)
 	switch topic {
 	case enum.TopicDepth:
-		if interval == "" {
-			return nil, errors.New("missing interval; use -interval for depth")
-		}
 		return adapter.EncodeMarketDataArgDepth(nil, adapter.MarketDataArgDepth{
 			Symbol: symbol,
 		})

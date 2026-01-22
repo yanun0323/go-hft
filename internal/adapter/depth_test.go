@@ -8,7 +8,7 @@ import (
 
 func TestDepthEncodeDecodeRoundTrip(t *testing.T) {
 	orig := Depth{
-		SymbolID:    42,
+		Symbol:      NewSymbol("BTC", "USDT"),
 		EventTsNano: 1700000000123,
 		RecvTsNano:  1700000000456,
 		Platform:    enum.PlatformBinance,

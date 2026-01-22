@@ -9,7 +9,7 @@ import (
 
 func TestDecodeMarketDataPayloadDepthBinance(t *testing.T) {
 	arg, err := adapter.EncodeMarketDataArgDepth(nil, adapter.MarketDataArgDepth{
-		Symbol: adapter.Symbol(42),
+		Symbol: adapter.NewSymbol("BTC", "USDT"),
 	})
 	if err != nil {
 		t.Fatalf("encode arg: %v", err)
@@ -20,8 +20,8 @@ func TestDecodeMarketDataPayloadDepthBinance(t *testing.T) {
 		t.Fatalf("decode payload: %v", err)
 	}
 	decoded := (adapter.Depth{}).Decode(encoded)
-	if decoded.SymbolID != 42 {
-		t.Fatalf("symbol mismatch: got %d want %d", decoded.SymbolID, 42)
+	if decoded.Symbol != adapter.NewSymbol("BTC", "USDT") {
+		t.Fatalf("symbol mismatch: got %d want %d", decoded.Symbol, 42)
 	}
 	if decoded.Platform != enum.PlatformBinance {
 		t.Fatalf("platform mismatch: got %d", decoded.Platform)
@@ -51,7 +51,7 @@ func TestDecodeMarketDataPayloadDepthBinance(t *testing.T) {
 
 func TestDecodeMarketDataPayloadOrderBinance(t *testing.T) {
 	arg, err := adapter.EncodeMarketDataArgOrder(nil, adapter.MarketDataArgOrder{
-		Symbol: adapter.Symbol(7),
+		Symbol: adapter.NewSymbol("BTC", "USDT"),
 		APIKey: []byte("key"),
 	})
 	if err != nil {
@@ -66,8 +66,8 @@ func TestDecodeMarketDataPayloadOrderBinance(t *testing.T) {
 	if decoded.ID != 12345 {
 		t.Fatalf("order id mismatch: got %d", decoded.ID)
 	}
-	if decoded.SymbolID != adapter.Symbol(7) {
-		t.Fatalf("symbol mismatch: got %d", decoded.SymbolID)
+	if decoded.Symbol != adapter.NewSymbol("BTC", "USDT") {
+		t.Fatalf("symbol mismatch: got %d", decoded.Symbol)
 	}
 	if decoded.Platform != enum.PlatformBinance {
 		t.Fatalf("platform mismatch: got %d", decoded.Platform)

@@ -10,7 +10,7 @@ import (
 //
 //go:generate codable
 type Depth struct {
-	SymbolID    uint16
+	Symbol      Symbol
 	EventTsNano int64
 	RecvTsNano  int64
 	Platform    enum.Platform
@@ -62,7 +62,7 @@ func (d Depth) Debug() string {
 
 	buf := make([]byte, 0, 256)
 	buf = append(buf, "Depth{symbol="...)
-	buf = strconv.AppendInt(buf, int64(d.SymbolID), 10)
+	buf = append(buf, d.Symbol.String()...)
 	buf = append(buf, " platform="...)
 	buf = appendPlatform(buf, d.Platform)
 	buf = append(buf, " event_ts="...)

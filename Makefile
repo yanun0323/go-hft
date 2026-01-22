@@ -8,9 +8,8 @@ GO ?= go
 PLATFORM ?= binance
 SOCKET_TOPIC ?= depth
 REQ_TOPIC ?= depth
-ARG ?= btcusdt@depth
-SYMBOL_ID ?= -1
-INTERVAL ?=
+BASE ?= BTC
+QUOTE ?= USDT
 UDS_DIR ?= /tmp/go-hft
 UDS_PATH ?=
 API_KEY ?=
@@ -36,9 +35,8 @@ ingest-cli:
 		-platform "$(PLATFORM)" \
 		-socket-topic "$(SOCKET_TOPIC)" \
 		-req-topic "$(REQ_TOPIC)" \
-		-arg "$(ARG)" \
-		-symbol-id "$(SYMBOL_ID)" \
-		-interval "$(INTERVAL)" \
+		-base "$(BASE)" \
+		-quote "$(QUOTE)" \
 		-uds-dir "$(UDS_DIR)" \
 		-api-key "$(API_KEY)"
 

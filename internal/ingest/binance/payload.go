@@ -2,7 +2,6 @@ package binance
 
 import (
 	"bytes"
-	"encoding/binary"
 	"errors"
 	"main/internal/adapter"
 	"main/internal/adapter/enum"
@@ -85,7 +84,7 @@ func decodeBinancePayload(topic enum.Topic, symbol adapter.Symbol, payload []byt
 
 func decodeBinanceDepth(payload []byte, symbol adapter.Symbol) (adapter.Depth, error) {
 	var depth adapter.Depth
-	depth.SymbolID = uint16(symbol)
+	depth.Symbol = symbol
 	depth.Platform = enum.PlatformBinance
 	depth.RecvTsNano = time.Now().UnixNano()
 
@@ -111,7 +110,7 @@ func decodeBinanceDepth(payload []byte, symbol adapter.Symbol) (adapter.Depth, e
 
 func decodeBinanceOrder(payload []byte, symbol adapter.Symbol) (adapter.Order, error) {
 	var order adapter.Order
-	order.SymbolID = symbol
+	order.Symbol = symbol
 	order.Platform = enum.PlatformBinance
 	order.RecvTsNano = time.Now().UnixNano()
 
@@ -414,10 +413,8 @@ func parseDecimal(src []byte) (adapter.Decimal, error) {
 }
 
 func decodeSymbol(arg []byte) (adapter.Symbol, error) {
-	if len(arg) < 2 {
-		return 0, ErrInvalidRequest
-	}
-	return adapter.Symbol(binary.BigEndian.Uint16(arg[0:2])), nil
+	// FIXME: Fix me
+	return adapter.Symbol(arg[:adapter.SymbolCap]), nil
 }
 
 func decimalSub(a adapter.Decimal, b adapter.Decimal) adapter.Decimal {
