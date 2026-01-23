@@ -90,7 +90,7 @@ func run() error {
 
 	log.Printf("marketdata uds listening: %s", socketPath)
 
-	md := ingest.NewMarketData()
+	md := ingest.NewUsecase()
 
 	var wg sync.WaitGroup
 	go func() {
@@ -118,7 +118,7 @@ func run() error {
 	return nil
 }
 
-func handleConn(ctx context.Context, conn *net.UnixConn, md *ingest.MarketData, serverPlatform enum.Platform) {
+func handleConn(ctx context.Context, conn *net.UnixConn, md *ingest.Usecase, serverPlatform enum.Platform) {
 	if conn == nil {
 		return
 	}
@@ -210,7 +210,7 @@ func handleConn(ctx context.Context, conn *net.UnixConn, md *ingest.MarketData, 
 func readRequest(conn *net.UnixConn, buf []byte) (adapter.IngestRequest, []byte, error) {
 	var req adapter.IngestRequest
 	if conn == nil {
-		return req, buf, exception.ErrInvalidMarketDataRequest
+		return req, buf, exception.ErrIngestInvalidRequest
 	}
 
 	return req.Decode(buf), buf, nil
@@ -245,7 +245,7 @@ func subscriptionKey(apiKey adapter.APIKey, topic enum.Topic, symbol string) str
 	return apiKey.String() + "|" + strconv.Itoa(int(topic)) + "|" + symbol
 }
 
-func runConsumer(ctx context.Context, conn *net.UnixConn, md *ingest.MarketData, group *connGroup, writeMu *sync.Mutex) {
+func runConsumer(ctx context.Context, conn *net.UnixConn, md *ingest.Usecase, group *connGroup, writeMu *sync.Mutex) {
 	if conn == nil || md == nil || group == nil || group.consumer == nil {
 		return
 	}
@@ -293,11 +293,11 @@ func runConsumer(ctx context.Context, conn *net.UnixConn, md *ingest.MarketData,
 
 func writeResponse(conn *net.UnixConn, platform enum.Platform, topic enum.Topic, arg []byte, payload []byte) error {
 	if conn == nil {
-		return exception.ErrInvalidMarketDataRequest
+		return exception.ErrIngestInvalidRequest
 	}
 	argLen := len(arg)
 	if argLen > maxUint16 {
-		return exception.ErrInvalidMarketDataRequest
+		return exception.ErrIngestInvalidRequest
 	}
 	total := respHeaderSize + argLen + len(payload)
 	buf := make([]byte, total)
