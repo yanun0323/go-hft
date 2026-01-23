@@ -56,7 +56,6 @@ type topicState struct {
 	symbol   adapter.Symbol
 	topicID  websocket.TopicID
 	refCount int
-	kind     enum.MarketDataKind
 }
 
 type topicKey struct {
@@ -83,18 +82,6 @@ const (
 	btccPort = "443"
 	btccPath = "/ws"
 )
-
-// KindFromTopic maps a topic enum to the market data kind.
-func KindFromTopic(topic enum.Topic) (enum.MarketDataKind, bool) {
-	switch topic {
-	case enum.TopicDepth:
-		return enum.MarketDataDepth, true
-	case enum.TopicOrder:
-		return enum.MarketDataOrder, true
-	default:
-		return 0, false
-	}
-}
 
 // Subscribe registers a topic and attaches the consumer to receive frames.
 func (m *MarketData) Subscribe(ctx context.Context, platform enum.Platform, apiKey adapter.APIKey, topic enum.Topic, symbol adapter.Symbol, consumer *websocket.Consumer) error {
@@ -176,21 +163,21 @@ func (m *MarketData) Unsubscribe(platform enum.Platform, apiKey adapter.APIKey, 
 
 // Resolve maps a topic id to its topic metadata.
 
-func (m *MarketData) Resolve(platform enum.Platform, apiKey adapter.APIKey, topicID websocket.TopicID) (enum.Topic, adapter.Symbol, enum.MarketDataKind, bool) {
+func (m *MarketData) Resolve(platform enum.Platform, apiKey adapter.APIKey, topicID websocket.TopicID) (enum.Topic, adapter.Symbol, bool) {
 	if m == nil || !platform.IsAvailable() {
-		return 0, adapter.Symbol{}, 0, false
+		return 0, adapter.Symbol{}, false
 	}
 	group := m.getGroup(platform, apiKey)
 	if group == nil {
-		return 0, adapter.Symbol{}, 0, false
+		return 0, adapter.Symbol{}, false
 	}
 	group.mu.RLock()
 	state := group.topicsByID[topicID]
 	group.mu.RUnlock()
 	if state == nil {
-		return 0, adapter.Symbol{}, 0, false
+		return 0, adapter.Symbol{}, false
 	}
-	return state.topic, state.symbol, state.kind, true
+	return state.topic, state.symbol, true
 }
 
 func (m *MarketData) getGroup(platform enum.Platform, apiKey adapter.APIKey) *wsGroup {
@@ -334,11 +321,6 @@ func (g *wsGroup) ensureTopic(m *MarketData, topic enum.Topic, symbol adapter.Sy
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	kind, ok := KindFromTopic(topic)
-	if !ok {
-		return nil, exception.ErrInvalidMarketDataRequest
-	}
-
 	symbolStr := symbol.String()
 	key := topicKey{topic: topic, arg: symbolStr}
 
@@ -366,7 +348,6 @@ func (g *wsGroup) ensureTopic(m *MarketData, topic enum.Topic, symbol adapter.Sy
 		arg:     symbolStr,
 		symbol:  symbol,
 		topicID: topicID,
-		kind:    kind,
 	}
 
 	g.topics[key] = state

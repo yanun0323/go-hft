@@ -255,7 +255,7 @@ func runConsumer(ctx context.Context, conn *net.UnixConn, md *ingest.MarketData,
 		if !ok {
 			return
 		}
-		topic, symbol, _, ok := md.Resolve(group.platform, group.apiKey, frame.Topic)
+		topic, symbol, ok := md.Resolve(group.platform, group.apiKey, frame.Topic)
 		if !ok {
 			frame.Release()
 			continue
@@ -288,17 +288,6 @@ func runConsumer(ctx context.Context, conn *net.UnixConn, md *ingest.MarketData,
 		if ctx.Err() != nil {
 			return
 		}
-	}
-}
-
-func payloadForKind(kind enum.MarketDataKind) ([]byte, error) {
-	switch kind {
-	case enum.MarketDataDepth:
-		return dummyDepthPayload, nil
-	case enum.MarketDataOrder:
-		return dummyOrderPayload, nil
-	default:
-		return nil, exception.ErrInvalidMarketDataRequest
 	}
 }
 

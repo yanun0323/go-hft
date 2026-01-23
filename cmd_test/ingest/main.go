@@ -10,7 +10,6 @@ import (
 	"log"
 	"main/internal/adapter"
 	"main/internal/adapter/enum"
-	"main/internal/ingest"
 	"main/pkg/uds"
 	"net"
 	"os"
@@ -120,7 +119,7 @@ func run() error {
 			return err
 		}
 		log.Printf("resp platform=%d topic=%d arg=%s payload=%dB", resp.Platform, resp.Topic, resp.Arg, len(resp.Payload))
-		if resp.Kind == enum.MarketDataDepth && len(resp.Payload) > 0 {
+		if len(resp.Payload) > 0 {
 			depth := adapter.Depth{}.Decode(resp.Payload)
 			log.Printf("depth:\n%s", depth.Debug())
 		}
@@ -131,7 +130,6 @@ type response struct {
 	Platform enum.Platform
 	Topic    enum.Topic
 	Arg      string
-	Kind     enum.MarketDataKind
 	Payload  []byte
 }
 
@@ -156,13 +154,7 @@ func readResponse(conn *net.UnixConn) (response, error) {
 		}
 	}
 	resp.Arg = string(arg)
-
-	kind, ok := ingest.KindFromTopic(resp.Topic)
-	if !ok {
-		return resp, fmt.Errorf("unknown topic: %d", resp.Topic)
-	}
-	resp.Kind = kind
-	payloadSize, err := payloadSize(kind)
+	payloadSize, err := payloadSize(resp.Topic)
 	if err != nil {
 		return resp, err
 	}
@@ -175,11 +167,11 @@ func readResponse(conn *net.UnixConn) (response, error) {
 	return resp, nil
 }
 
-func payloadSize(kind enum.MarketDataKind) (int, error) {
+func payloadSize(kind enum.Topic) (int, error) {
 	switch kind {
-	case enum.MarketDataDepth:
+	case enum.TopicDepth:
 		return adapter.Depth{}.SizeInByte(), nil
-	case enum.MarketDataOrder:
+	case enum.TopicOrder:
 		return adapter.Order{}.SizeInByte(), nil
 	default:
 		return 0, fmt.Errorf("unknown kind: %d", kind)

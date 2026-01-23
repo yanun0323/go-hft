@@ -31,7 +31,7 @@ codable-gen:
 
 ## ingest-cli: run ingest client (cmd_test)
 ingest-cli:
-	@$(GO) run ./cmd_test \
+	@$(GO) run ./cmd_test/ingest \
 		-platform "$(PLATFORM)" \
 		-socket-topic "$(SOCKET_TOPIC)" \
 		-req-topic "$(REQ_TOPIC)" \
