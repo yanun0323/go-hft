@@ -67,7 +67,7 @@ func run() error {
 	}
 
 	symbol := adapter.NewSymbol(*baseFlag, *quoteFlag)
-	apiKey := []byte(*apiKeyFlag)
+	apiKey := adapter.NewAPIKey(*apiKeyFlag)
 
 	socketPath := strings.TrimSpace(*udsPathFlag)
 	if socketPath == "" {
@@ -95,17 +95,13 @@ func run() error {
 		_ = conn.Close()
 	}()
 
-	req := adapter.MarketDataRequest{
+	req := adapter.IngestRequest{
 		Platform: platform,
 		Topic:    topic,
 		Symbol:   symbol,
 		APIKey:   apiKey,
 	}
-	payload, err := adapter.EncodeMarketDataRequest(nil, req)
-	if err != nil {
-		return err
-	}
-
+	payload := req.Encode(nil)
 	if err := writeFull(conn, payload); err != nil {
 		return err
 	}

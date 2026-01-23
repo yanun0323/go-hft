@@ -4,25 +4,25 @@ package adapter
 
 import "unsafe"
 
-func (o Order) SizeInByte() int {
-	return int(unsafe.Sizeof(o))
+func (i IngestRequest) SizeInByte() int {
+	return int(unsafe.Sizeof(i))
 }
 
-func (o Order) Encode(dst []byte) []byte {
-	size := o.SizeInByte()
+func (i IngestRequest) Encode(dst []byte) []byte {
+	size := i.SizeInByte()
 	if cap(dst) < size {
 		dst = make([]byte, size)
 	} else {
 		dst = dst[:size]
 	}
 
-	src := unsafe.Slice((*byte)(unsafe.Pointer(&o)), size)
+	src := unsafe.Slice((*byte)(unsafe.Pointer(&i)), size)
 	copy(dst, src)
 	return dst
 }
 
-func (Order) Decode(src []byte) Order {
-	var result Order
+func (IngestRequest) Decode(src []byte) IngestRequest {
+	var result IngestRequest
 	size := int(unsafe.Sizeof(result))
 	dst := unsafe.Slice((*byte)(unsafe.Pointer(&result)), size)
 	copy(dst, src)

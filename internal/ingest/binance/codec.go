@@ -78,7 +78,7 @@ func (c *Codec) EncodeAuth(dst []byte, apiKey string, reqID uint64) (websocket.M
 }
 
 // Register adds a topic mapping for a stream name.
-func (c *Codec) Register(topicID websocket.TopicID, req adapter.MarketDataRequest) error {
+func (c *Codec) Register(topicID websocket.TopicID, req adapter.IngestRequest) error {
 	if c == nil {
 		return errEmptyTopic
 	}
@@ -101,7 +101,7 @@ func (c *Codec) Register(topicID websocket.TopicID, req adapter.MarketDataReques
 	return nil
 }
 
-func streamForRequest(req adapter.MarketDataRequest) ([]byte, error) {
+func streamForRequest(req adapter.IngestRequest) ([]byte, error) {
 	switch req.Topic {
 	case enum.TopicDepth:
 		market := symbolToMarket(req.Symbol)

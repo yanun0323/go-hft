@@ -45,7 +45,7 @@ type wsGroup struct {
 	topics     map[topicKey]*topicState
 	topicsByID map[websocket.TopicID]*topicState
 	running    atomic.Bool
-	apiKey     []byte
+	apiKey     adapter.APIKey
 	authReqID  uint64
 	platform   enum.Platform
 }
@@ -68,7 +68,7 @@ type platformCodec interface {
 	websocket.TopicDecoder
 	websocket.ControlEncoder
 
-	Register(topicID websocket.TopicID, req adapter.MarketDataRequest) error
+	Register(topicID websocket.TopicID, req adapter.IngestRequest) error
 	Unregister(topicID websocket.TopicID)
 	RegisterAuth(topicID websocket.TopicID, apiKey string, reqID uint64) error
 	EncodeAuth(dst []byte, apiKey string, reqID uint64) (websocket.MessageType, []byte, error)
@@ -97,7 +97,7 @@ func KindFromTopic(topic enum.Topic) (enum.MarketDataKind, bool) {
 }
 
 // Subscribe registers a topic and attaches the consumer to receive frames.
-func (m *MarketData) Subscribe(ctx context.Context, platform enum.Platform, apiKey []byte, topic enum.Topic, symbol adapter.Symbol, consumer *websocket.Consumer) error {
+func (m *MarketData) Subscribe(ctx context.Context, platform enum.Platform, apiKey adapter.APIKey, topic enum.Topic, symbol adapter.Symbol, consumer *websocket.Consumer) error {
 	if m == nil {
 		return exception.ErrInvalidMarketDataRequest
 	}
@@ -129,7 +129,7 @@ func (m *MarketData) Subscribe(ctx context.Context, platform enum.Platform, apiK
 }
 
 // Unsubscribe detaches the consumer and removes topic registration when no longer used.
-func (m *MarketData) Unsubscribe(platform enum.Platform, apiKey []byte, topic enum.Topic, symbol adapter.Symbol, consumer *websocket.Consumer) error {
+func (m *MarketData) Unsubscribe(platform enum.Platform, apiKey adapter.APIKey, topic enum.Topic, symbol adapter.Symbol, consumer *websocket.Consumer) error {
 	if m == nil {
 		return exception.ErrInvalidMarketDataRequest
 	}
@@ -176,7 +176,7 @@ func (m *MarketData) Unsubscribe(platform enum.Platform, apiKey []byte, topic en
 
 // Resolve maps a topic id to its topic metadata.
 
-func (m *MarketData) Resolve(platform enum.Platform, apiKey []byte, topicID websocket.TopicID) (enum.Topic, adapter.Symbol, enum.MarketDataKind, bool) {
+func (m *MarketData) Resolve(platform enum.Platform, apiKey adapter.APIKey, topicID websocket.TopicID) (enum.Topic, adapter.Symbol, enum.MarketDataKind, bool) {
 	if m == nil || !platform.IsAvailable() {
 		return 0, adapter.Symbol{}, 0, false
 	}
@@ -193,22 +193,22 @@ func (m *MarketData) Resolve(platform enum.Platform, apiKey []byte, topicID webs
 	return state.topic, state.symbol, state.kind, true
 }
 
-func (m *MarketData) getGroup(platform enum.Platform, apiKey []byte) *wsGroup {
+func (m *MarketData) getGroup(platform enum.Platform, apiKey adapter.APIKey) *wsGroup {
 	if m == nil {
 		return nil
 	}
-	key := groupKey{platform: platform, apiKey: string(apiKey)}
+	key := groupKey{platform: platform, apiKey: apiKey.String()}
 	m.mu.Lock()
 	group := m.groups[key]
 	m.mu.Unlock()
 	return group
 }
 
-func (m *MarketData) getOrCreateGroup(ctx context.Context, platform enum.Platform, apiKey []byte) (*wsGroup, error) {
+func (m *MarketData) getOrCreateGroup(ctx context.Context, platform enum.Platform, apiKey adapter.APIKey) (*wsGroup, error) {
 	if !platform.IsAvailable() {
 		return nil, exception.ErrInvalidMarketDataRequest
 	}
-	key := groupKey{platform: platform, apiKey: string(apiKey)}
+	key := groupKey{platform: platform, apiKey: apiKey.String()}
 	var authReqID uint64
 	if len(apiKey) > 0 {
 		authReqID = uint64(m.nextTopicID())
@@ -229,7 +229,7 @@ func (m *MarketData) getOrCreateGroup(ctx context.Context, platform enum.Platfor
 	}
 	if len(apiKey) > 0 {
 		group.authReqID = authReqID
-		if err := group.codec.RegisterAuth(websocket.TopicID(authReqID), string(apiKey), authReqID); err != nil {
+		if err := group.codec.RegisterAuth(websocket.TopicID(authReqID), key.apiKey, authReqID); err != nil {
 			m.mu.Unlock()
 			return nil, err
 		}
@@ -240,7 +240,7 @@ func (m *MarketData) getOrCreateGroup(ctx context.Context, platform enum.Platfor
 	return group, nil
 }
 
-func newGroup(platform enum.Platform, apiKey []byte) (*wsGroup, error) {
+func newGroup(platform enum.Platform, apiKey adapter.APIKey) (*wsGroup, error) {
 	switch platform {
 	case enum.PlatformBinance:
 		codec := binance.NewCodec()
@@ -262,7 +262,7 @@ func newGroup(platform enum.Platform, apiKey []byte) (*wsGroup, error) {
 				if len(groupAPIKey) == 0 {
 					return nil
 				}
-				msgType, payload, err := codec.EncodeAuth(nil, string(groupAPIKey), reqID)
+				msgType, payload, err := codec.EncodeAuth(nil, groupAPIKey.String(), reqID)
 				if err != nil {
 					return err
 				}
@@ -297,7 +297,7 @@ func newGroup(platform enum.Platform, apiKey []byte) (*wsGroup, error) {
 				if len(groupAPIKey) == 0 {
 					return nil
 				}
-				msgType, payload, err := codec.EncodeAuth(nil, string(groupAPIKey), reqID)
+				msgType, payload, err := codec.EncodeAuth(nil, groupAPIKey.String(), reqID)
 				if err != nil {
 					return err
 				}
@@ -347,7 +347,7 @@ func (g *wsGroup) ensureTopic(m *MarketData, topic enum.Topic, symbol adapter.Sy
 	}
 
 	topicID := m.nextTopicID()
-	if err := g.codec.Register(topicID, adapter.MarketDataRequest{
+	if err := g.codec.Register(topicID, adapter.IngestRequest{
 		Platform: g.platform,
 		Topic:    topic,
 		Symbol:   symbol,
@@ -362,11 +362,11 @@ func (g *wsGroup) ensureTopic(m *MarketData, topic enum.Topic, symbol adapter.Sy
 	}
 
 	state := &topicState{
-		topic:    topic,
-		arg:      symbolStr,
-		symbol:   symbol,
-		topicID:  topicID,
-		kind:     kind,
+		topic:   topic,
+		arg:     symbolStr,
+		symbol:  symbol,
+		topicID: topicID,
+		kind:    kind,
 	}
 
 	g.topics[key] = state

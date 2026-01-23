@@ -5,7 +5,7 @@ package adapter
 import "unsafe"
 
 func (o OrderIntent) SizeInByte() int {
-	return int(unsafe.Sizeof(OrderIntent{}))
+	return int(unsafe.Sizeof(o))
 }
 
 func (o OrderIntent) Encode(dst []byte) []byte {
@@ -21,7 +21,7 @@ func (o OrderIntent) Encode(dst []byte) []byte {
 	return dst
 }
 
-func (o OrderIntent) Decode(src []byte) OrderIntent {
+func (OrderIntent) Decode(src []byte) OrderIntent {
 	var result OrderIntent
 	size := int(unsafe.Sizeof(result))
 	dst := unsafe.Slice((*byte)(unsafe.Pointer(&result)), size)

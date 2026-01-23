@@ -47,7 +47,6 @@ func main() {
 
 func run() error {
 	platformFlag := flag.String("platform", "", "platform name for shard socket")
-	topicFlag := flag.String("topic", "", "shard id for socket filename")
 	udsDirFlag := flag.String("uds-dir", defaultUDSDir, "UDS socket directory")
 	udsPathFlag := flag.String("uds-path", "", "UDS socket path (optional)")
 	flag.Parse()
@@ -66,14 +65,10 @@ func run() error {
 	}
 	socketPath := strings.TrimSpace(*udsPathFlag)
 	if socketPath == "" {
-		topicName := strings.TrimSpace(*topicFlag)
-		if platformName == "" || topicName == "" {
-			return errors.New("missing platform or topic; use -platform/-topic or -uds-path")
-		}
 		if err := os.MkdirAll(udsDir, 0o755); err != nil {
 			return err
 		}
-		socketPath = filepath.Join(udsDir, buildSocketFilename(platformName, topicName))
+		socketPath = filepath.Join(udsDir, buildSocketFilename(platformName))
 	} else {
 		socketDir := filepath.Dir(socketPath)
 		if err := os.MkdirAll(socketDir, 0o755); err != nil {
@@ -142,12 +137,12 @@ func handleConn(ctx context.Context, conn *net.UnixConn, md *ingest.MarketData, 
 	var (
 		buf           []byte
 		subscriptions = make(map[string]connSubscription)
-		groups        = make(map[string]*connGroup)
+		groups        = make(map[adapter.APIKey]*connGroup)
 		writeMu       sync.Mutex
 	)
 	defer func() {
 		for _, sub := range subscriptions {
-			group := groups[string(sub.apiKey)]
+			group := groups[sub.apiKey]
 			if group == nil {
 				continue
 			}
@@ -185,7 +180,7 @@ func handleConn(ctx context.Context, conn *net.UnixConn, md *ingest.MarketData, 
 			continue
 		}
 
-		group := groups[string(apiKey)]
+		group := groups[apiKey]
 		if group == nil {
 			consumer := websocket.NewConsumer(4096, websocket.OverflowDropOldest) // TODO: 根據 topic 來決定 policy
 			group = &connGroup{
@@ -193,56 +188,33 @@ func handleConn(ctx context.Context, conn *net.UnixConn, md *ingest.MarketData, 
 				apiKey:   apiKey,
 				consumer: consumer,
 			}
-			groups[string(apiKey)] = group
+			groups[apiKey] = group
 			go runConsumer(ctx, conn, md, group, &writeMu)
 		}
 
-		if err := md.Subscribe(ctx, req.Platform, req.APIKey, req.Topic, req.Symbol, group.consumer); err != nil {
+		if err := md.Subscribe(ctx, req.Platform, apiKey, req.Topic, req.Symbol, group.consumer); err != nil {
 			log.Printf("subscribe error: %v", err)
 			return
 		}
 
 		subscriptions[subKey] = connSubscription{
-			platform: req.Platform,
-			apiKey:   req.APIKey,
-			topic:    req.Topic,
-			symbol:   req.Symbol,
+			platform:  req.Platform,
+			apiKey:    apiKey,
+			topic:     req.Topic,
+			symbol:    req.Symbol,
 			symbolStr: symbolStr,
 		}
 	}
 }
 
-func readRequest(conn *net.UnixConn, buf []byte) (adapter.MarketDataRequest, []byte, error) {
-	var req adapter.MarketDataRequest
+func readRequest(conn *net.UnixConn, buf []byte) (adapter.IngestRequest, []byte, error) {
+	var req adapter.IngestRequest
 	if conn == nil {
 		return req, buf, exception.ErrInvalidMarketDataRequest
 	}
 
-	var header [reqHeaderSize]byte
-	if _, err := io.ReadFull(conn, header[:]); err != nil {
-		return req, buf, err
-	}
-
-	apiKeyLen := int(binary.BigEndian.Uint16(header[2:4]))
-	total := reqHeaderSize + adapter.SymbolCap + apiKeyLen
-	if total < reqHeaderSize+adapter.SymbolCap {
-		return req, buf, exception.ErrInvalidMarketDataRequest
-	}
-
-	if cap(buf) < total {
-		buf = make([]byte, total)
-	} else {
-		buf = buf[:total]
-	}
-	copy(buf[:reqHeaderSize], header[:])
-	if _, err := io.ReadFull(conn, buf[reqHeaderSize:]); err != nil {
-		return req, buf, err
-	}
-
-	parsed, _, err := adapter.DecodeMarketDataRequest(buf)
-	return parsed, buf, err
+	return req.Decode(buf), buf, nil
 }
-
 
 func writeFull(conn *net.UnixConn, buf []byte) error {
 	for len(buf) > 0 {
@@ -257,20 +229,20 @@ func writeFull(conn *net.UnixConn, buf []byte) error {
 
 type connGroup struct {
 	platform enum.Platform
-	apiKey   []byte
+	apiKey   adapter.APIKey
 	consumer *websocket.Consumer
 }
 
 type connSubscription struct {
-	platform enum.Platform
-	apiKey   []byte
-	topic    enum.Topic
-	symbol   adapter.Symbol
+	platform  enum.Platform
+	apiKey    adapter.APIKey
+	topic     enum.Topic
+	symbol    adapter.Symbol
 	symbolStr string
 }
 
-func subscriptionKey(apiKey []byte, topic enum.Topic, symbol string) string {
-	return string(apiKey) + "|" + strconv.Itoa(int(topic)) + "|" + symbol
+func subscriptionKey(apiKey adapter.APIKey, topic enum.Topic, symbol string) string {
+	return apiKey.String() + "|" + strconv.Itoa(int(topic)) + "|" + symbol
 }
 
 func runConsumer(ctx context.Context, conn *net.UnixConn, md *ingest.MarketData, group *connGroup, writeMu *sync.Mutex) {
@@ -348,13 +320,9 @@ func writeResponse(conn *net.UnixConn, platform enum.Platform, topic enum.Topic,
 	return writeFull(conn, buf)
 }
 
-func buildSocketFilename(platformName string, topic string) string {
-	topicSegment := sanitizeSegment(topic, "topic")
+func buildSocketFilename(platformName string) string {
 	platformSegment := sanitizeSegment(platformName, "")
-	if platformSegment == "" {
-		return "marketdata-" + topicSegment
-	}
-	return "marketdata-" + platformSegment + "-" + topicSegment
+	return "marketdata-" + platformSegment
 }
 
 func sanitizeSegment(value string, fallback string) string {

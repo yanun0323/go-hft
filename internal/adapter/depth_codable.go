@@ -5,7 +5,7 @@ package adapter
 import "unsafe"
 
 func (d Depth) SizeInByte() int {
-	return int(unsafe.Sizeof(Depth{}))
+	return int(unsafe.Sizeof(d))
 }
 
 func (d Depth) Encode(dst []byte) []byte {
@@ -21,7 +21,7 @@ func (d Depth) Encode(dst []byte) []byte {
 	return dst
 }
 
-func (d Depth) Decode(src []byte) Depth {
+func (Depth) Decode(src []byte) Depth {
 	var result Depth
 	size := int(unsafe.Sizeof(result))
 	dst := unsafe.Slice((*byte)(unsafe.Pointer(&result)), size)

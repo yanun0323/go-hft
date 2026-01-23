@@ -282,7 +282,7 @@ func render(pkgName string, types []codableType) ([]byte, error) {
 func writeCopyable(buf *bytes.Buffer, typeName string) {
 	recv := receiverName(typeName)
 	fmt.Fprintf(buf, "func (%s %s) SizeInByte() int {\n", recv, typeName)
-	fmt.Fprintf(buf, "\treturn int(unsafe.Sizeof(%s{}))\n", typeName)
+	fmt.Fprintf(buf, "\treturn int(unsafe.Sizeof(%s))\n", recv)
 	fmt.Fprintf(buf, "}\n\n")
 
 	fmt.Fprintf(buf, "func (%s %s) Encode(dst []byte) []byte {\n", recv, typeName)
@@ -297,7 +297,7 @@ func writeCopyable(buf *bytes.Buffer, typeName string) {
 	fmt.Fprintf(buf, "\treturn dst\n")
 	fmt.Fprintf(buf, "}\n\n")
 
-	fmt.Fprintf(buf, "func (%s %s) Decode(src []byte) %s {\n", recv, typeName, typeName)
+	fmt.Fprintf(buf, "func (%s) Decode(src []byte) %s {\n", typeName, typeName)
 	fmt.Fprintf(buf, "\tvar result %s\n", typeName)
 	fmt.Fprintf(buf, "\tsize := int(unsafe.Sizeof(result))\n")
 	fmt.Fprintf(buf, "\tdst := unsafe.Slice((*byte)(unsafe.Pointer(&result)), size)\n")
