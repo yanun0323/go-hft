@@ -5,7 +5,6 @@ import (
 	"main/internal/adapter"
 	"main/internal/adapter/enum"
 	"main/pkg/exception"
-	"net/http"
 	"sync/atomic"
 )
 
@@ -38,7 +37,7 @@ func (use *Usecase) Handle(req adapter.OrderRequest) error {
 }
 
 type Delegator interface {
-	Send(context.Context, adapter.OrderRequest) (*http.Response, error)
+	Send(context.Context, adapter.OrderRequest) (adapter.OrderResponse, error)
 }
 
 func (use *Usecase) Run(ctx context.Context) {

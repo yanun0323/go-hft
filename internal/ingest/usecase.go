@@ -43,7 +43,7 @@ type wsGroup struct {
 	topics     map[topicKey]*topicState
 	topicsByID map[websocket.TopicID]*topicState
 	running    atomic.Bool
-	apiKey     adapter.APIKey
+	apiKey     adapter.Str64
 	authReqID  uint64
 	platform   enum.Platform
 }
@@ -82,7 +82,7 @@ const (
 )
 
 // Subscribe registers a topic and attaches the consumer to receive frames.
-func (use *Usecase) Subscribe(ctx context.Context, platform enum.Platform, apiKey adapter.APIKey, topic enum.Topic, symbol adapter.Symbol, consumer *websocket.Consumer) error {
+func (use *Usecase) Subscribe(ctx context.Context, platform enum.Platform, apiKey adapter.Str64, topic enum.Topic, symbol adapter.Symbol, consumer *websocket.Consumer) error {
 	if use == nil {
 		return exception.ErrIngestInvalidRequest
 	}
@@ -114,7 +114,7 @@ func (use *Usecase) Subscribe(ctx context.Context, platform enum.Platform, apiKe
 }
 
 // Unsubscribe detaches the consumer and removes topic registration when no longer used.
-func (use *Usecase) Unsubscribe(platform enum.Platform, apiKey adapter.APIKey, topic enum.Topic, symbol adapter.Symbol, consumer *websocket.Consumer) error {
+func (use *Usecase) Unsubscribe(platform enum.Platform, apiKey adapter.Str64, topic enum.Topic, symbol adapter.Symbol, consumer *websocket.Consumer) error {
 	if use == nil {
 		return exception.ErrIngestInvalidRequest
 	}
@@ -161,7 +161,7 @@ func (use *Usecase) Unsubscribe(platform enum.Platform, apiKey adapter.APIKey, t
 
 // Resolve maps a topic id to its topic metadata.
 
-func (use *Usecase) Resolve(platform enum.Platform, apiKey adapter.APIKey, topicID websocket.TopicID) (enum.Topic, adapter.Symbol, bool) {
+func (use *Usecase) Resolve(platform enum.Platform, apiKey adapter.Str64, topicID websocket.TopicID) (enum.Topic, adapter.Symbol, bool) {
 	if use == nil || !platform.IsAvailable() {
 		return 0, adapter.Symbol{}, false
 	}
@@ -178,7 +178,7 @@ func (use *Usecase) Resolve(platform enum.Platform, apiKey adapter.APIKey, topic
 	return state.topic, state.symbol, true
 }
 
-func (use *Usecase) getGroup(platform enum.Platform, apiKey adapter.APIKey) *wsGroup {
+func (use *Usecase) getGroup(platform enum.Platform, apiKey adapter.Str64) *wsGroup {
 	if use == nil {
 		return nil
 	}
@@ -189,13 +189,13 @@ func (use *Usecase) getGroup(platform enum.Platform, apiKey adapter.APIKey) *wsG
 	return group
 }
 
-func (use *Usecase) getOrCreateGroup(ctx context.Context, platform enum.Platform, apiKey adapter.APIKey) (*wsGroup, error) {
+func (use *Usecase) getOrCreateGroup(ctx context.Context, platform enum.Platform, apiKey adapter.Str64) (*wsGroup, error) {
 	if !platform.IsAvailable() {
 		return nil, exception.ErrIngestInvalidRequest
 	}
 	key := groupKey{platform: platform, apiKey: apiKey.String()}
 	var authReqID uint64
-	if len(apiKey) > 0 {
+	if apiKey.Len() > 0 {
 		authReqID = uint64(use.nextTopicID())
 	}
 
@@ -212,7 +212,7 @@ func (use *Usecase) getOrCreateGroup(ctx context.Context, platform enum.Platform
 		use.mu.Unlock()
 		return nil, err
 	}
-	if len(apiKey) > 0 {
+	if apiKey.Len() > 0 {
 		group.authReqID = authReqID
 		if err := group.codec.RegisterAuth(websocket.TopicID(authReqID), key.apiKey, authReqID); err != nil {
 			use.mu.Unlock()
@@ -225,7 +225,7 @@ func (use *Usecase) getOrCreateGroup(ctx context.Context, platform enum.Platform
 	return group, nil
 }
 
-func newGroup(platform enum.Platform, apiKey adapter.APIKey) (*wsGroup, error) {
+func newGroup(platform enum.Platform, apiKey adapter.Str64) (*wsGroup, error) {
 	switch platform {
 	case enum.PlatformBinance:
 		codec := binance.NewCodec()
@@ -241,13 +241,12 @@ func newGroup(platform enum.Platform, apiKey adapter.APIKey) (*wsGroup, error) {
 			FanOut: websocket.FanOutShared,
 			OnConnect: func(ctx context.Context, w websocket.Writer) error {
 				group.mu.RLock()
-				groupAPIKey := group.apiKey
 				reqID := group.authReqID
 				group.mu.RUnlock()
-				if len(groupAPIKey) == 0 {
+				if group.apiKey.Len() == 0 {
 					return nil
 				}
-				msgType, payload, err := codec.EncodeAuth(nil, groupAPIKey.String(), reqID)
+				msgType, payload, err := codec.EncodeAuth(nil, group.apiKey.String(), reqID)
 				if err != nil {
 					return err
 				}
@@ -276,13 +275,12 @@ func newGroup(platform enum.Platform, apiKey adapter.APIKey) (*wsGroup, error) {
 			FanOut: websocket.FanOutShared,
 			OnConnect: func(ctx context.Context, w websocket.Writer) error {
 				group.mu.RLock()
-				groupAPIKey := group.apiKey
 				reqID := group.authReqID
 				group.mu.RUnlock()
-				if len(groupAPIKey) == 0 {
+				if group.apiKey.Len() == 0 {
 					return nil
 				}
-				msgType, payload, err := codec.EncodeAuth(nil, groupAPIKey.String(), reqID)
+				msgType, payload, err := codec.EncodeAuth(nil, group.apiKey.String(), reqID)
 				if err != nil {
 					return err
 				}

@@ -12,7 +12,7 @@ func TestMarketDataRequestEncodeDecodeRoundTrip(t *testing.T) {
 		Platform: enum.PlatformBinance,
 		Topic:    enum.TopicDepth,
 		Symbol:   adapter.NewSymbol("BTC", "USDT"),
-		APIKey:   adapter.NewAPIKey("key-123"),
+		APIKey:   adapter.NewStr64("key-123"),
 	}
 
 	encoded := orig.Encode(nil)

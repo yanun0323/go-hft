@@ -2,29 +2,19 @@ package adapter
 
 import "strconv"
 
-// Price is a scaled integer. The scale is defined by configuration.
-type Price Decimal
-
-// Quantity is a scaled integer. The scale is defined by configuration.
-type Quantity Decimal
-
-// Notional is a scaled integer. The scale is defined by configuration.
-type Notional Decimal
-
-// Fee is a scaled integer. The scale is defined by configuration.
-type Fee Decimal
-
 // Decimal
 type Decimal struct {
 	Integer int64
 	Scale   int
 }
 
-func (d Decimal) AppendString(buf []byte) []byte {
+func (d Decimal) AppendBytes(buf []byte) []byte {
 	return appendScaledInt(buf, d.Integer, d.Scale)
 }
 
 func appendScaledInt(buf []byte, value int64, scale int) []byte {
+	buf = buf[:0]
+
 	if scale <= 0 {
 		return strconv.AppendInt(buf, value, 10)
 	}

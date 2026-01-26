@@ -137,7 +137,7 @@ func handleConn(ctx context.Context, conn *net.UnixConn, md *ingest.Usecase, ser
 	var (
 		buf           []byte
 		subscriptions = make(map[string]connSubscription)
-		groups        = make(map[adapter.APIKey]*connGroup)
+		groups        = make(map[adapter.Str64]*connGroup)
 		writeMu       sync.Mutex
 	)
 	defer func() {
@@ -229,19 +229,19 @@ func writeFull(conn *net.UnixConn, buf []byte) error {
 
 type connGroup struct {
 	platform enum.Platform
-	apiKey   adapter.APIKey
+	apiKey   adapter.Str64
 	consumer *websocket.Consumer
 }
 
 type connSubscription struct {
 	platform  enum.Platform
-	apiKey    adapter.APIKey
+	apiKey    adapter.Str64
 	topic     enum.Topic
 	symbol    adapter.Symbol
 	symbolStr string
 }
 
-func subscriptionKey(apiKey adapter.APIKey, topic enum.Topic, symbol string) string {
+func subscriptionKey(apiKey adapter.Str64, topic enum.Topic, symbol string) string {
 	return apiKey.String() + "|" + strconv.Itoa(int(topic)) + "|" + symbol
 }
 

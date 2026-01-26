@@ -143,14 +143,14 @@ func decodeBinanceOrder(payload []byte, symbol adapter.Symbol) (adapter.Order, e
 		}
 		qty = parsed
 		hasQty = true
-		order.Quantity = adapter.Quantity(parsed)
+		order.Quantity = parsed
 	}
 	if priceText, ok := scanStringField(payload, keyOrderPrice); ok {
 		parsed, err := parseDecimal(priceText)
 		if err != nil {
 			return order, err
 		}
-		order.Price = adapter.Price(parsed)
+		order.Price = parsed
 	}
 
 	leftQty := qty
@@ -164,7 +164,7 @@ func decodeBinanceOrder(payload []byte, symbol adapter.Symbol) (adapter.Order, e
 		}
 	}
 	if hasQty {
-		order.LeftQuantity = adapter.Quantity(leftQty)
+		order.LeftQuantity = leftQty
 	}
 
 	copy(order.Source[:], "binance")
@@ -223,7 +223,7 @@ func scanDepthSide(payload []byte, key []byte, rows []adapter.DepthRow) (int, bo
 		if err != nil {
 			return count, false
 		}
-		rows[count] = adapter.DepthRow{Price: adapter.Price(price), Quantity: adapter.Quantity(qty)}
+		rows[count] = adapter.DepthRow{Price: price, Quantity: qty}
 		count++
 		for i < len(payload) && payload[i] != ']' {
 			i++

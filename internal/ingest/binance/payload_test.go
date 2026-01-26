@@ -28,15 +28,15 @@ func TestDecodeMarketDataPayloadDepthBinance(t *testing.T) {
 		t.Fatalf("depth lengths mismatch: bids=%d asks=%d", decoded.BidsLength, decoded.AsksLength)
 	}
 	bid0 := decoded.Bids[0]
-	if bid0.Price != (adapter.Price{Integer: 10010, Scale: 2}) || bid0.Quantity != (adapter.Quantity{Integer: 15, Scale: 1}) {
+	if bid0.Price != (adapter.Decimal{Integer: 10010, Scale: 2}) || bid0.Quantity != (adapter.Decimal{Integer: 15, Scale: 1}) {
 		t.Fatalf("bid0 mismatch: %+v", bid0)
 	}
 	bid1 := decoded.Bids[1]
-	if bid1.Price != (adapter.Price{Integer: 99, Scale: 0}) || bid1.Quantity != (adapter.Quantity{Integer: 2, Scale: 0}) {
+	if bid1.Price != (adapter.Decimal{Integer: 99, Scale: 0}) || bid1.Quantity != (adapter.Decimal{Integer: 2, Scale: 0}) {
 		t.Fatalf("bid1 mismatch: %+v", bid1)
 	}
 	ask0 := decoded.Asks[0]
-	if ask0.Price != (adapter.Price{Integer: 10020, Scale: 2}) || ask0.Quantity != (adapter.Quantity{Integer: 3, Scale: 0}) {
+	if ask0.Price != (adapter.Decimal{Integer: 10020, Scale: 2}) || ask0.Quantity != (adapter.Decimal{Integer: 3, Scale: 0}) {
 		t.Fatalf("ask0 mismatch: %+v", ask0)
 	}
 	if decoded.RecvTsNano == 0 {
@@ -79,13 +79,13 @@ func TestDecodeMarketDataPayloadOrderBinance(t *testing.T) {
 	if decoded.TimeInForce != enum.OrderTimeInForceGTC {
 		t.Fatalf("time in force mismatch: got %d", decoded.TimeInForce)
 	}
-	if decoded.Price != (adapter.Price{Integer: 3000001, Scale: 2}) {
+	if decoded.Price != (adapter.Decimal{Integer: 3000001, Scale: 2}) {
 		t.Fatalf("price mismatch: %+v", decoded.Price)
 	}
-	if decoded.Quantity != (adapter.Quantity{Integer: 25, Scale: 1}) {
+	if decoded.Quantity != (adapter.Decimal{Integer: 25, Scale: 1}) {
 		t.Fatalf("quantity mismatch: %+v", decoded.Quantity)
 	}
-	if decoded.LeftQuantity != (adapter.Quantity{Integer: 20, Scale: 1}) {
+	if decoded.LeftQuantity != (adapter.Decimal{Integer: 20, Scale: 1}) {
 		t.Fatalf("left quantity mismatch: %+v", decoded.LeftQuantity)
 	}
 	if decoded.RecvTsNano == 0 {

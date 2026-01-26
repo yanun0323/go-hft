@@ -11,8 +11,8 @@ type OrderIntent struct {
 	Action        enum.OrderAction
 	Type          enum.OrderType
 	Side          enum.OrderSide
-	Price         Price
-	Quantity      Quantity
+	Price         Decimal
+	Quantity      Decimal
 	TimeInForce   enum.OrderTimeInForce
 	CreatedTime   int64
 	ID            Str64

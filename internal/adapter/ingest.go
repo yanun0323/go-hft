@@ -11,5 +11,5 @@ type IngestRequest struct {
 	Platform enum.Platform
 	Topic    enum.Topic
 	Symbol   Symbol
-	APIKey   APIKey
+	APIKey   Str64
 }

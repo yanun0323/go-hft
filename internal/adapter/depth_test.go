@@ -15,11 +15,11 @@ func TestDepthEncodeDecodeRoundTrip(t *testing.T) {
 		BidsLength:  2,
 		AsksLength:  3,
 	}
-	orig.Bids[0] = DepthRow{Price: Price{Integer: 101}, Quantity: Quantity{Integer: 5}}
-	orig.Bids[1] = DepthRow{Price: Price{Integer: 100}, Quantity: Quantity{Integer: 9}}
-	orig.Bids[5] = DepthRow{Price: Price{Integer: 95}, Quantity: Quantity{Integer: 1}}
-	orig.Asks[0] = DepthRow{Price: Price{Integer: 102}, Quantity: Quantity{Integer: 4}}
-	orig.Asks[2] = DepthRow{Price: Price{Integer: 105}, Quantity: Quantity{Integer: 7}}
+	orig.Bids[0] = DepthRow{Price: Decimal{Integer: 101}, Quantity: Decimal{Integer: 5}}
+	orig.Bids[1] = DepthRow{Price: Decimal{Integer: 100}, Quantity: Decimal{Integer: 9}}
+	orig.Bids[5] = DepthRow{Price: Decimal{Integer: 95}, Quantity: Decimal{Integer: 1}}
+	orig.Asks[0] = DepthRow{Price: Decimal{Integer: 102}, Quantity: Decimal{Integer: 4}}
+	orig.Asks[2] = DepthRow{Price: Decimal{Integer: 105}, Quantity: Decimal{Integer: 7}}
 
 	encoded := orig.Encode(nil)
 	decoded := (Depth{}).Decode(encoded)

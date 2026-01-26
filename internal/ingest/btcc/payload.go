@@ -129,7 +129,7 @@ func decodeBtccOrder(payload []byte, symbol adapter.Symbol) (adapter.Order, erro
 	}
 	if priceText, ok := scanNumberField(orderValue, keyOrderPrice); ok {
 		if price, err := parseDecimal(priceText); err == nil {
-			order.Price = adapter.Price(price)
+			order.Price = price
 		}
 	}
 
@@ -139,18 +139,18 @@ func decodeBtccOrder(payload []byte, symbol adapter.Symbol) (adapter.Order, erro
 		if parsed, err := parseDecimal(qtyText); err == nil {
 			qty = parsed
 			hasQty = true
-			order.Quantity = adapter.Quantity(parsed)
+			order.Quantity = parsed
 		}
 	}
 
 	if leftText, ok := scanNumberField(orderValue, keyOrderLeft); ok {
 		if parsed, err := parseDecimal(leftText); err == nil {
-			order.LeftQuantity = adapter.Quantity(parsed)
+			order.LeftQuantity = parsed
 		}
 	} else if dealText, ok := scanNumberField(orderValue, keyOrderDeal); ok {
 		if parsed, err := parseDecimal(dealText); err == nil && hasQty {
 			left := decimalSub(qty, parsed)
-			order.LeftQuantity = adapter.Quantity(left)
+			order.LeftQuantity = left
 		}
 	}
 
@@ -224,7 +224,7 @@ func scanDepthSide(payload []byte, key []byte, rows []adapter.DepthRow) (int, bo
 		if err != nil {
 			return count, false
 		}
-		rows[count] = adapter.DepthRow{Price: adapter.Price(price), Quantity: adapter.Quantity(qty)}
+		rows[count] = adapter.DepthRow{Price: price, Quantity: qty}
 		count++
 		for i < len(payload) && payload[i] != ']' {
 			i++

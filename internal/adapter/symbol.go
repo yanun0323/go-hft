@@ -73,13 +73,17 @@ func (symbol Symbol) Decode() (base, quote, memo string) {
 }
 
 func (symbol Symbol) String() string {
-	symbolBuf := make([]byte, 0, SymbolCap)
+	return string(symbol.AppendBytes(make([]byte, 0, SymbolCap)))
+}
+
+func (symbol Symbol) AppendBytes(buf []byte) []byte {
+	buf = buf[:0]
 	for _, char := range symbol[:baseCap] {
 		if char == 0 {
 			break
 		}
 
-		symbolBuf = append(symbolBuf, char)
+		buf = append(buf, char)
 	}
 
 	for _, n := range symbol[baseCap : baseCap+quoteCap] {
@@ -87,7 +91,7 @@ func (symbol Symbol) String() string {
 			break
 		}
 
-		symbolBuf = append(symbolBuf, n)
+		buf = append(buf, n)
 	}
 
 	for _, n := range symbol[baseCap+quoteCap:] {
@@ -95,8 +99,8 @@ func (symbol Symbol) String() string {
 			break
 		}
 
-		symbolBuf = append(symbolBuf, n)
+		buf = append(buf, n)
 	}
 
-	return string(symbolBuf)
+	return buf
 }

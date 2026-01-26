@@ -66,7 +66,7 @@ func run() error {
 	}
 
 	symbol := adapter.NewSymbol(*baseFlag, *quoteFlag)
-	apiKey := adapter.NewAPIKey(*apiKeyFlag)
+	apiKey := adapter.NewStr64(*apiKeyFlag)
 
 	socketPath := strings.TrimSpace(*udsPathFlag)
 	if socketPath == "" {

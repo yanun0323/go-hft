@@ -21,8 +21,8 @@ type Depth struct {
 }
 
 type DepthRow struct {
-	Price    Price
-	Quantity Quantity
+	Price    Decimal
+	Quantity Decimal
 }
 
 // TODO: return a human readable format string
@@ -51,9 +51,9 @@ func (d Depth) Debug() string {
 				buf = append(buf, ',')
 			}
 			buf = append(buf, '(')
-			buf = Decimal(rows[i].Price).AppendString(buf)
+			buf = rows[i].Price.AppendBytes(buf)
 			buf = append(buf, ',')
-			buf = Decimal(rows[i].Quantity).AppendString(buf)
+			buf = rows[i].Quantity.AppendBytes(buf)
 			buf = append(buf, ')')
 		}
 		buf = append(buf, ']')

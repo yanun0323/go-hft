@@ -14,9 +14,9 @@ type Order struct {
 	Type         enum.OrderType
 	Side         enum.OrderSide
 	Status       enum.OrderStatus
-	Price        Price
-	Quantity     Quantity
-	LeftQuantity Quantity
+	Price        Decimal
+	Quantity     Decimal
+	LeftQuantity Decimal
 	TimeInForce  enum.OrderTimeInForce
 	UpdatedTime  int64
 	Source       [64]byte
