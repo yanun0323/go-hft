@@ -1,5 +1,19 @@
 package enum
 
+// OrderSide limit, market
+type OrderAction uint8
+
+const (
+	_order_action_beg OrderAction = iota
+	OrderActionPlaceOrder
+	OrderActionCancelOrder
+	_order_action_end
+)
+
+func (t OrderAction) IsAvailable() bool {
+	return t > _order_action_beg && t < _order_action_end
+}
+
 // OrderSide buy, sell
 type OrderSide uint8
 

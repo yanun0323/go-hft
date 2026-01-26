@@ -1,6 +1,6 @@
 package adapter
 
-type APIKey [64]byte
+type APIKey Str64
 
 func NewAPIKey(s string) APIKey {
 	var k APIKey
