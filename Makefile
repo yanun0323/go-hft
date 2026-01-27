@@ -48,3 +48,21 @@ ingest:
 	else \
 		$(GO) run ./cmd/ingest -platform "$(PLATFORM)" -topic "$(SOCKET_TOPIC)" -uds-dir "$(UDS_DIR)"; \
 	fi
+
+ARGS := $(word 2,$(MAKECMDGOALS))
+%:
+	@:
+
+## run: go run particular folder
+run:
+	@if [ -z "$(ARGS)" ]; then \
+	    echo "go run ./main.go"; go run ./main.go; \
+	fi
+	@echo "go run ./$(ARGS)"; go run ./$(ARGS)
+
+## test: go test particular folder
+test:
+	@if [ -z "$(ARGS)" ]; then \
+	    echo "go test ./..."; go test --count=1 ./...; \
+	fi
+	@echo "go test ./$(ARGS)"; go test --count=1 ./$(ARGS)

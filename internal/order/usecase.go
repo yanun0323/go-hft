@@ -5,24 +5,29 @@ import (
 	"main/internal/adapter"
 	"main/internal/adapter/enum"
 	"main/pkg/exception"
+	"main/pkg/uds"
 	"sync/atomic"
+
+	"github.com/rs/zerolog/log"
 )
 
 type Usecase struct {
-	btccDelegator    Delegator
-	binanceDelegator Delegator
+	btccDelegator       Delegator
+	binanceDelegator    Delegator
+	normalizerClientMap map[enum.Platform]*uds.Client
 
 	running atomic.Bool
 	worker  int
 	queue   chan adapter.OrderRequest
 }
 
-func NewUsecase(workerCount, workerCap int, btccDelegator, binanceDelegator Delegator) *Usecase {
+func NewUsecase(workerCount, workerCap int, normalizerClientMap map[enum.Platform]*uds.Client, btccDelegator, binanceDelegator Delegator) *Usecase {
 	return &Usecase{
-		btccDelegator:    btccDelegator,
-		binanceDelegator: binanceDelegator,
-		worker:           workerCount,
-		queue:            make(chan adapter.OrderRequest, workerCap),
+		btccDelegator:       btccDelegator,
+		binanceDelegator:    binanceDelegator,
+		normalizerClientMap: normalizerClientMap,
+		worker:              workerCount,
+		queue:               make(chan adapter.OrderRequest, workerCap),
 	}
 }
 
@@ -42,15 +47,22 @@ type Delegator interface {
 
 func (use *Usecase) Run(ctx context.Context) {
 	if use.running.Swap(true) {
+		log.Warn().Msg("order usecase already running")
 		return
 	}
 
 	for range use.worker {
-		go workerExecuteOrderRequest(ctx, use.queue, use.btccDelegator, use.binanceDelegator)
+		go (&orderRequestWorker{
+			normalizerClientMap: use.normalizerClientMap,
+		}).run(ctx, use.queue, use.btccDelegator, use.binanceDelegator)
 	}
 }
 
-func workerExecuteOrderRequest(ctx context.Context, ch chan adapter.OrderRequest, btccDelegator, binanceDelegator Delegator) {
+type orderRequestWorker struct {
+	normalizerClientMap map[enum.Platform]*uds.Client
+}
+
+func (w *orderRequestWorker) run(ctx context.Context, ch chan adapter.OrderRequest, btccDelegator, binanceDelegator Delegator) {
 	for {
 		select {
 		case req := <-ch:
@@ -65,13 +77,13 @@ func workerExecuteOrderRequest(ctx context.Context, ch chan adapter.OrderRequest
 
 			res, err := delegator.Send(ctx, req)
 			if err != nil {
-				// TODO: handle error
+				log.Error().Err(err).Msg("send request by delegator")
 				continue
 			}
 			_ = res
 			// TODO: save result and send it to ingest normalizer
 		case <-ctx.Done():
-			// TODO: add log
+			log.Info().Msg("worker shutdown")
 			return
 		}
 	}

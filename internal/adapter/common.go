@@ -8,6 +8,13 @@ type Decimal struct {
 	Scale   int
 }
 
+func NewDecimal(integer int64, scale int) Decimal {
+	return Decimal{
+		Integer: integer,
+		Scale:   scale,
+	}
+}
+
 func (d Decimal) AppendBytes(buf []byte) []byte {
 	return appendScaledInt(buf, d.Integer, d.Scale)
 }

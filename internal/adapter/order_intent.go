@@ -6,7 +6,7 @@ import "main/internal/adapter/enum"
 //
 //go:generate codable
 type OrderIntent struct {
-	SymbolID      Symbol
+	Symbol        Symbol
 	Platform      enum.Platform
 	Action        enum.OrderAction
 	Type          enum.OrderType

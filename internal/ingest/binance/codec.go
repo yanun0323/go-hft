@@ -117,7 +117,6 @@ func streamForRequest(req adapter.IngestRequest) ([]byte, error) {
 }
 
 func symbolToMarket(symbol adapter.Symbol) string {
-	// TODO: map symbol to market string (e.g. BTCUSDT).
 	return symbol.String()
 }
 

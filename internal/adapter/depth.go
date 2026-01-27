@@ -25,7 +25,7 @@ type DepthRow struct {
 	Quantity Decimal
 }
 
-// TODO: return a human readable format string
+// Debug returns a human readable format string
 func (d Depth) Debug() string {
 	appendPlatform := func(buf []byte, p enum.Platform) []byte {
 		switch p {
