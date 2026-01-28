@@ -2,10 +2,10 @@ package order
 
 import (
 	"context"
-	"main/internal/adapter"
-	"main/internal/adapter/enum"
-	"main/pkg/exception"
-	"main/pkg/uds"
+	"main/libs/adapter"
+	"main/libs/adapter/enum"
+	"main/libs/shared/exception"
+	"main/libs/shared/uds"
 	"sync/atomic"
 
 	"github.com/rs/zerolog/log"

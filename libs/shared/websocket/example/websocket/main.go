@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"log"
-	"main/pkg/metric"
-	"main/pkg/websocket"
+	"main/libs/shared/metric"
+	"main/libs/shared/websocket"
 	"net"
 	"os"
 	"os/signal"
@@ -90,7 +90,7 @@ func main() {
 		decoder,
 		encoder,
 		websocket.Option{
-			OnConnect: func(ctx context.Context, w websocket.Writer) error {
+			OnConnect: func(context.Context, websocket.Writer) error {
 				log.Println("connected")
 				return nil
 			},

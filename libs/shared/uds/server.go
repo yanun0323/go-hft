@@ -2,7 +2,7 @@ package uds
 
 import (
 	"errors"
-	"main/pkg/exception"
+	"main/libs/shared/exception"
 	"net"
 	"os"
 )

@@ -3,8 +3,8 @@ package binance
 import (
 	"testing"
 
-	"main/internal/adapter"
-	"main/internal/adapter/enum"
+	"main/libs/adapter"
+	"main/libs/adapter/enum"
 )
 
 func TestDecodeMarketDataPayloadDepthBinance(t *testing.T) {

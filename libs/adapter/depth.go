@@ -3,7 +3,7 @@ package adapter
 import (
 	"strconv"
 
-	"main/internal/adapter/enum"
+	"main/libs/adapter/enum"
 )
 
 // use `make codable-gen` to generate code

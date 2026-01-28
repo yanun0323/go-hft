@@ -1,8 +1,8 @@
 package btcc
 
 import (
-	"main/internal/adapter"
-	"main/internal/adapter/enum"
+	"main/libs/adapter"
+	"main/libs/adapter/enum"
 	"net/http"
 	"os"
 	"strconv"

@@ -3,7 +3,7 @@ package adapter
 import (
 	"testing"
 
-	"main/internal/adapter/enum"
+	"main/libs/adapter/enum"
 )
 
 func TestDepthEncodeDecodeRoundTrip(t *testing.T) {

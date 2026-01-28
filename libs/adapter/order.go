@@ -1,6 +1,6 @@
 package adapter
 
-import "main/internal/adapter/enum"
+import "main/libs/adapter/enum"
 
 // use `make codable-gen` to generate code
 //

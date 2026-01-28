@@ -1,6 +1,6 @@
 package adapter
 
-import "main/pkg/exception"
+import "main/libs/shared/exception"
 
 const (
 	CodeInternalError = -999

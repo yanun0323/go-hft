@@ -3,8 +3,8 @@ package ingest
 import (
 	"testing"
 
-	"main/internal/adapter"
-	"main/internal/adapter/enum"
+	"main/libs/adapter"
+	"main/libs/adapter/enum"
 )
 
 func TestMarketDataRequestEncodeDecodeRoundTrip(t *testing.T) {

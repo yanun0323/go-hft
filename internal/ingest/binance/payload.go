@@ -3,8 +3,8 @@ package binance
 import (
 	"bytes"
 	"errors"
-	"main/internal/adapter"
-	"main/internal/adapter/enum"
+	"main/libs/adapter"
+	"main/libs/adapter/enum"
 	"time"
 )
 

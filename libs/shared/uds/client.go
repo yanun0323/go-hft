@@ -1,7 +1,7 @@
 package uds
 
 import (
-	"main/pkg/exception"
+	"main/libs/shared/exception"
 	"net"
 )
 

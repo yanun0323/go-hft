@@ -2,11 +2,11 @@ package binance
 
 import (
 	"errors"
-	"main/internal/adapter"
-	"main/internal/adapter/enum"
-	"main/pkg/exception"
-	"main/pkg/scanner"
-	"main/pkg/websocket"
+	"main/libs/adapter"
+	"main/libs/adapter/enum"
+	"main/libs/shared/exception"
+	"main/libs/shared/scanner"
+	"main/libs/shared/websocket"
 	"strings"
 	"sync"
 )

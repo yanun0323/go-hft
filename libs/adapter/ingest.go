@@ -1,7 +1,7 @@
 package adapter
 
 import (
-	"main/internal/adapter/enum"
+	"main/libs/adapter/enum"
 )
 
 // IngestRequest is the minimal UDS request format.

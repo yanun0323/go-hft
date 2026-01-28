@@ -2,12 +2,12 @@ package ingest
 
 import (
 	"context"
-	"main/internal/adapter"
-	"main/internal/adapter/enum"
 	"main/internal/ingest/binance"
 	"main/internal/ingest/btcc"
-	"main/pkg/exception"
-	"main/pkg/websocket"
+	"main/libs/adapter"
+	"main/libs/adapter/enum"
+	"main/libs/shared/exception"
+	"main/libs/shared/websocket"
 	"sync"
 	"sync/atomic"
 )
