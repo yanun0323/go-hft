@@ -2,8 +2,8 @@ package ingest
 
 import (
 	"context"
-	"main/internal/ingest/binance"
-	"main/internal/ingest/btcc"
+	"main/bundle/internal/ingest/binance"
+	"main/bundle/internal/ingest/btcc"
 	"main/libs/adapter"
 	"main/libs/adapter/enum"
 	"main/libs/shared/exception"
@@ -239,7 +239,7 @@ func newGroup(platform enum.Platform, apiKey adapter.Str64) (*wsGroup, error) {
 		dialer := websocket.NewDialer(context.Background(), binanceHost, binancePort, binancePath)
 		manager, err := websocket.New(dialer, codec, codec, websocket.Option{
 			FanOut: websocket.FanOutShared,
-			OnConnect: func(ctx context.Context, w websocket.Writer) error {
+			OnConnect: func(_ context.Context, w websocket.Writer) error {
 				group.mu.RLock()
 				reqID := group.authReqID
 				group.mu.RUnlock()
@@ -273,7 +273,7 @@ func newGroup(platform enum.Platform, apiKey adapter.Str64) (*wsGroup, error) {
 		dialer := websocket.NewDialer(context.Background(), btccHost, btccPort, btccPath)
 		manager, err := websocket.New(dialer, codec, codec, websocket.Option{
 			FanOut: websocket.FanOutShared,
-			OnConnect: func(ctx context.Context, w websocket.Writer) error {
+			OnConnect: func(_ context.Context, w websocket.Writer) error {
 				group.mu.RLock()
 				reqID := group.authReqID
 				group.mu.RUnlock()
