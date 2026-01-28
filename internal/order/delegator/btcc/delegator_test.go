@@ -54,11 +54,11 @@ func TestDelegator(t *testing.T) {
 				Platform:      enum.PlatformBTCC,
 				Action:        enum.OrderActionPlaceOrder,
 				Type:          enum.OrderTypeMarket,
-				Side:          enum.OrderSideSell,
-				Quantity:      adapter.NewDecimal(1, 0),
+				Side:          enum.OrderSideBuy,
+				Quantity:      adapter.NewDecimal(100, 0),
 				CreatedTime:   now,
 				ClientOrderID: adapter.NewStr64("hft-" + strconv.FormatInt(now-1, 10)),
-				Source:        adapter.NewStr64("hft-test-function"),
+				Source:        adapter.NewStr64("hft-b-123456789012345678901234"),
 			},
 			Token: token,
 		})
@@ -122,3 +122,11 @@ func TestDelegator(t *testing.T) {
 		}
 	}
 }
+
+/*
+stock_gts2.stock_user_deal_history
+office.t_customer
+office.t_customer
+stock_gts2.t_stock_currency
+stock_gts2.stock_order_history
+*/
