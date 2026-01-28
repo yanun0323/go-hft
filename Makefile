@@ -26,7 +26,7 @@ help:
 
 ## codable-gen: run go generate for codable (auto-install if missing)
 codable-gen:
-	@$(GO) install ./tool/codable
+	@$(GO) install ./libs/tool/codable
 	@PATH="$(BIN_DIR):$$PATH" $(GO) generate ./...
 
 ## ingest-cli: run ingest client (cmd_test)
